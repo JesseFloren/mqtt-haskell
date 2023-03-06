@@ -1,0 +1,25 @@
+# Borrowed from https://github.com/actions/setup-haskell/blob/main/README.md 
+
+on: 
+  push:
+    branches:
+    - master
+  pull_request:
+    branches:
+    - master
+name: build
+env:
+  GHC_VERSION: '9.4.4' # Exact version of ghc to use
+  ACTIONS_ALLOW_UNSECURE_COMMANDS: true # Forced by installation of Stack 2.3.1 
+jobs:
+  test:
+    name: Run test suite
+    runs-on: ubuntu-latest 
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-haskell@v1.1
+        with:
+          ghc-version: ${{ env.GHC_VERSION }} 
+          enable-stack: true
+          stack-version: 'latest'
+      - run: stack test
