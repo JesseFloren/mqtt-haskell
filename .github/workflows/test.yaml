@@ -11,6 +11,7 @@ name: build
 env:
   GHC_VERSION: '9.4.4' # Exact version of ghc to use
   STACK_VERSION: '2.9.3' # Exact version of stack to use
+  ACTIONS_ALLOW_UNSECURE_COMMANDS: true # Forced by installation of Stack 2.9.3
 jobs:
   test:
     name: Run test suite
