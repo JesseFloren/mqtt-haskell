@@ -56,7 +56,9 @@ showChat = unlines . map show . reverse
       runLoop (sendMessage state msg)
 
 login :: IO String
-login = prompt "What is your username?"
+login = do
+  prompt "What is your username?"
+  -- login should also then connect 
 
 printStateInfo :: AppState -> IO ()
 printStateInfo state = putStrLn $ "Logged in as " ++ username state
