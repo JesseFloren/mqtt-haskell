@@ -16,7 +16,19 @@ runClient = do
     putStrLn $ "Received: " ++ show response
     
     -- close connection
-    close sock
+    -- close sock
+    talkToServer sock
+
+talkToServer :: Socket -> IO ()
+talkToServer sock = do
+    s <- Prelude.getLine
+    -- putStrLn s
+    sendAll sock $ C.pack s
+    
+    -- receive response
+    response <- recv sock 1024
+    putStrLn $ "Received: " ++ show response
+    talkToServer sock
 
 subscribe :: String -> Int -> IO Socket
 subscribe addr port = do
