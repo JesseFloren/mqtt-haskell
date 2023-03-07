@@ -9,9 +9,6 @@ type Chat = [Message]
 
 data AppState = AppState {username :: String, chat :: Chat}
 
-emptyState :: String -> AppState
-emptyState u = AppState u []
-
 putMessage :: AppState -> String -> AppState
 putMessage (AppState user chat) msg = 
   AppState user (Message {message = msg, author = user} : chat)
@@ -21,7 +18,7 @@ run :: IO ()
 run = do
   hSetBuffering stdout LineBuffering
   resetScreen
-  state <- emptyState <$> login
+  state <- AppState <$> login <*> getMessages
   printStateInfo state
   runLoop state
   where 
@@ -34,8 +31,13 @@ run = do
       putStrLn ""
       runLoop (putMessage state msg)
 
+    getMessages :: IO [Message]
+    getMessages = pure []
+
 login :: IO String
-login = prompt "What is your username?"
+login = do
+  prompt "What is your username?"
+  -- login should also then connect 
 
 printStateInfo :: AppState -> IO ()
 printStateInfo state = putStrLn $ "Logged in as " ++ username state
