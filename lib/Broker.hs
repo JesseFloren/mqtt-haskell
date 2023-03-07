@@ -26,9 +26,10 @@ acceptLoop :: Socket -> MVar [MVar String] -> IO b
 acceptLoop sock listMVars = do
     (conn, clientAddr) <- accept sock
     putStrLn $ "Connection from " ++ show clientAddr
-    id <- forkIO $ handleConnection conn
-    putStrLn $ "Created session: " ++ show id
-    acceptLoop sock
+    msg <- recv conn 1024
+    sendAll conn $ C.pack $ "Server: " ++ unpack msg 
+    _ <- createHandler conn (unpack msg)
+    acceptLoop sock listMVars
 
     where
         createHandler conn "pub" = do
