@@ -1,8 +1,9 @@
 module Chat.App (run) where
 
 import Chat.Message (Message(..))
+import Chat.Terminal (prompt, resetScreen)
 import System.IO (hSetBuffering, stdout, BufferMode(LineBuffering))
-import System.Console.ANSI (cursorUp, clearLine, clearScreen, setCursorPosition)
+import System.Console.ANSI (cursorUp)
 
 type Chat = [Message]
 
@@ -11,26 +12,10 @@ data AppState = AppState {username :: String, chat :: Chat}
 emptyState :: String -> AppState
 emptyState u = AppState u []
 
-prompt :: String -> IO String
-prompt q = do
-  putStrLn q
-  a <- getLine
-  cursorUp 1
-  clearLine
-  cursorUp 1
-  clearLine
-  return a
+putMessage :: AppState -> String -> AppState
+putMessage (AppState user chat) msg = 
+  AppState user (Message {message = msg, author = user} : chat)
 
-resetScreen :: IO ()
-resetScreen = do
-  clearScreen
-  setCursorPosition 0 0
-
-login :: IO String
-login = prompt "What is your username?"
-
-printStateInfo :: AppState -> IO ()
-printStateInfo state = putStrLn $ "Logged in as " ++ username state
 
 run :: IO ()
 run = do
@@ -47,12 +32,13 @@ run = do
       msg <- getLine
       cursorUp (2 + length chat')
       putStrLn ""
-      runLoop (sendMessage state msg)
+      runLoop (putMessage state msg)
 
+login :: IO String
+login = prompt "What is your username?"
 
-sendMessage :: AppState -> String -> AppState
-sendMessage (AppState user chat) msg = 
-  AppState user (Message {message = msg, author = user} : chat)
+printStateInfo :: AppState -> IO ()
+printStateInfo state = putStrLn $ "Logged in as " ++ username state
 
 showChat :: Chat -> String
 showChat = unlines . map show . reverse 
