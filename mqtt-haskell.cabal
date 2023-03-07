@@ -44,3 +44,10 @@ executable mqtt-broker
     build-depends:    base ^>=4.16.4.0, mqtt-haskell
     hs-source-dirs:   src-broker
     default-language: Haskell2010
+
+
+test-suite mqtt-tests
+    type:           exitcode-stdio-1.0
+    main-is:        Spec.hs
+    hs-source-dirs: test
+    build-depends: base, mqtt-haskell, tasty, tasty-quickcheck, tasty-hunit
