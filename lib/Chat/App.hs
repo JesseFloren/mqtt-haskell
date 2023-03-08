@@ -10,8 +10,8 @@ type Chat = [Message]
 data AppState = AppState {username :: String, chat :: Chat}
 
 putMessage :: AppState -> String -> AppState
-putMessage (AppState user chat) msg = 
-  AppState user (Message {message = msg, author = user} : chat)
+putMessage (AppState user chat') msg = 
+  AppState user (Message {message = msg, author = user} : chat')
 
 
 run :: IO ()
