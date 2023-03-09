@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module Packets.Abstract where
 
 import Utils (Bit)
@@ -26,9 +27,14 @@ commandMap = M.fromList [(CONNECT, 1), (CONNACK, 2), (PUBLISH, 3), (PUBACK, 4), 
         (SUBSCRIBE, 8), (SUBACK, 9), (UNSUBSCRIBE, 10), (UNSUBACK, 11), (PINGREQ, 12), (PINGRESP, 13), (DISCONNECT, 14)]
 
 --- *** Flags *** ---
-data QoS     = Zero | One | Two deriving (Eq, Ord, Show)
-type Dup     = Bool
-type Retain  = Bool
+data QoS      = Zero | One | Two deriving (Eq, Ord, Show)
+type Dup      = Bool
+type Retain   = Bool
+type PacketId = Int
+type Topic    = String
+
+mapQoS :: QoS -> Int
+mapQoS = \case {Zero -> 0; One -> 1; Two -> 2}
 
 --- *** Header and Payload Content *** ---
 data Content = Str String | Int16 Int | Flags [Bit] | Con Bool | Int8 Int | QoS QoS deriving (Show)
