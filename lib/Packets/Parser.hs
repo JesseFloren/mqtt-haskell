@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+
 module Packets.Parser (byteStringToPacket) where
 
 --- *** Imports *** ---
@@ -40,7 +41,7 @@ parseFlags :: Int -> BitParser Content
 parseFlags count = Flags <$> parseSize count
 
 parseVariableHeader :: CommandType -> BitParser Header
-parseVariableHeader CONNACK    = (\con pid -> [con, pid]) <$> parseCon <*> parseInt16
+parseVariableHeader CONNACK    = (\sp res -> [sp, res]) <$> parseCon <*> parseInt8
 parseVariableHeader PUBLISH    = (\t pid -> [t, pid]) <$> parseStr <*> parseInt16
 parseVariableHeader PINGREQ    = pure []
 parseVariableHeader PINGRESP   = pure []
@@ -50,7 +51,7 @@ parseVariableHeader _          = (: []) <$> parseInt16
 parsePayload :: CommandType -> BitParser Payload
 parsePayload CONNECT     = undefined
 parsePayload PUBLISH     = (: []) <$> parseStr
-parsePayload CONNACK     = (: []) <$> parseInt8
+parsePayload CONNACK     = pure []
 parsePayload SUBACK      = (: []) <$> parseInt8
 parsePayload SUBSCRIBE   = concat <$> some ((\t q -> [t, q]) <$> parseStr <*> parseQoS)
 parsePayload UNSUBSCRIBE = concat <$> some ((\t q -> [t, q]) <$> parseStr <*> parseQoS)
