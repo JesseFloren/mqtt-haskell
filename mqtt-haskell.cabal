@@ -16,8 +16,8 @@ extra-source-files:
 
 library
     hs-source-dirs: lib
-    exposed-modules: Utils, Broker, Client, Packets, Packets.Simple, Chat.App
-    other-modules: Packets.Builder, Packets.Parser, Packets.Abstract, Chat.Message, Chat.Terminal
+    exposed-modules: Utils, Broker, Client, Packets, Chat.App
+    other-modules: Packets.Simple, Packets.Builder, Packets.Parser, Packets.Abstract, Chat.Message, Chat.Terminal
     build-depends: base >=4.16.4.0, network >= 0.1.0.1, bytestring, containers, ansi-terminal
     default-language: Haskell2010
 

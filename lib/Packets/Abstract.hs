@@ -32,6 +32,16 @@ type Dup      = Bool
 type Retain   = Bool
 type PacketId = Int
 type Topic    = String
+data ConnectFlags = ConnectFlags {
+        username :: Maybe String, 
+        password :: Maybe String, 
+        will :: Maybe Testament,
+        cleanSession :: Bool} deriving (Show)
+
+type Testament = (Retain, QoS, Topic, String) 
+type ClientId = String
+
+
 
 mapQoS :: QoS -> Int
 mapQoS = \case {Zero -> 0; One -> 1; Two -> 2}

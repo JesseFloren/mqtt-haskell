@@ -1,10 +1,8 @@
 module Main where
 import Client (runClient)
-import Utils (helloWorld)
-import Header (bitsToInt, Bit (..))
-import qualified Chat.App as App
+import Packets
 
 main :: IO ()
 main = do
-    App.run
-    --runClient
+    print $ byteStringToPacket $ packetToByteString (
+        connectMessage "Client12" (ConnectFlags{username=(Just "Username"), password=(Just "Password"), will=(Just (False, One, "topic", "message")), cleanSession=True}) 6000)
