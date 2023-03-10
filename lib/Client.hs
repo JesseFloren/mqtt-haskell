@@ -1,13 +1,21 @@
 module Client where
 import Network.Socket
-import Network.Socket.ByteString
+import Network.Socket.ByteString (recv, sendAll)
 import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Char8 (unpack)
+
+type Connection = Socket
+
+newtype IPAddress = IP String
+newtype Port = Port Int
+data SocketAddress = SocketAddress IPAddress Port
 
 runClient :: IO ()
 runClient = do
     -- create socket
-    sock <- subscribe "127.0.0.1" 8000
+    let ip = IP "127.0.0.1"
+        port = Port 8000
+    sock <- subscribe (SocketAddress ip port)
     -- get input, send message
     s <- Prelude.getLine
     sendAll sock $ C.pack s
@@ -42,17 +50,22 @@ listenToServer sock = do
     putStrLn $ "Received: " ++ unpack response
     listenToServer sock
 
-subscribe :: String -> Int -> IO Socket
-subscribe addr port = do
-    -- Create socket
-    sock <- socket AF_INET Stream defaultProtocol
+subscribe :: SocketAddress -> IO Socket
+subscribe socketAddress = do
+  -- Create socket
+  sock <- socket AF_INET Stream defaultProtocol
+  serverAddr <- createSocketAddress socketAddress
+  
+  -- Connect socket to address
+  connect sock serverAddr
 
-    -- Create address
-    serverAddr <- getAddrInfo (Just defaultHints { addrFlags = [AI_ADDRCONFIG] }) (Just addr) (Just (show port)) 
-        >>= \x -> return (head $ map addrAddress x)
-    
-    -- Connect socket to address
-    connect sock serverAddr
-
-    return sock
+  return sock
+    where 
+      createSocketAddress :: SocketAddress -> IO SockAddr
+      createSocketAddress (SocketAddress (IP ip) (Port port)) = do
+        info <- getAddrInfo 
+                  (Just defaultHints { addrFlags = [AI_ADDRCONFIG] }) 
+                  (Just ip) 
+                  (Just (show port)) 
+        return (head $ map addrAddress info)
 

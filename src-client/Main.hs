@@ -7,4 +7,4 @@ import qualified Chat.App as App
 main :: IO ()
 main = do
     App.run
-    --runClient
+    -- runClient
