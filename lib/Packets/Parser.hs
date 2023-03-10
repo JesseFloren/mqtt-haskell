@@ -41,6 +41,7 @@ parseFlags :: Int -> BitParser Content
 parseFlags count = Flags <$> parseSize count
 
 parseVariableHeader :: CommandType -> BitParser Header
+parseVariableHeader CONNECT    = (\prot ver flags alive -> [prot,ver,flags,alive]) <$> parseStr <*> parseInt8 <*> parseFlags 8 <*> parseInt16
 parseVariableHeader CONNACK    = (\sp res -> [sp, res]) <$> parseCon <*> parseInt8
 parseVariableHeader PUBLISH    = (\t pid -> [t, pid]) <$> parseStr <*> parseInt16
 parseVariableHeader PINGREQ    = pure []
@@ -49,7 +50,7 @@ parseVariableHeader DISCONNECT = pure []
 parseVariableHeader _          = (: []) <$> parseInt16
 
 parsePayload :: CommandType -> BitParser Payload
-parsePayload CONNECT     = undefined
+parsePayload CONNECT     = some parseStr
 parsePayload PUBLISH     = (: []) <$> parseStr
 parsePayload CONNACK     = pure []
 parsePayload SUBACK      = (: []) <$> parseInt8
