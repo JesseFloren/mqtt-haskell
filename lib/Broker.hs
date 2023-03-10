@@ -27,7 +27,8 @@ acceptLoop sock listMVars = do
     (conn, clientAddr) <- accept sock
     putStrLn $ "Connection from " ++ show clientAddr
     msg <- recv conn 1024
-    sendAll conn $ C.pack $ "Server: " ++ unpack msg 
+    putStrLn $ C.unpack msg
+    sendAll conn msg 
     _ <- createHandler conn (unpack msg)
     acceptLoop sock listMVars
 
