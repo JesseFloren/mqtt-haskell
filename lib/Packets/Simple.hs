@@ -35,8 +35,8 @@ connectMessage cid (ConnectFlags{..}) keepAlive = Packet CONNECT emptyFlags head
 -- 3; 0x03 The Network Connection has been made but the MQTT service is unavailable
 -- 4; 0x04 The data in the user name or password is malformed 
 -- 5; 0x05 The Client is not authorized to connect
-connackMessage :: Packet
-connackMessage = Packet CONNACK emptyFlags [Con True, Int8 0] []
+connackMessage :: Int -> Packet
+connackMessage code = Packet CONNACK emptyFlags [Con True, Int8 code] []
 
 publishMessage :: PacketId -> Dup -> Retain -> (Topic, QoS) -> String -> Packet --      Dup QoS Retain  Topic             QoS          Message
 publishMessage pid dup ret (topic, qos) str = Packet PUBLISH (pubFlags dup qos ret) [Str topic, Int16 pid] [Str str]
