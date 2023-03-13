@@ -10,13 +10,6 @@ import qualified Data.Map as M
 import Control.Applicative (empty, Alternative (some))
 import Packets.Abstract
 
---- *** Get Key from map with Value *** ---
-lookupKey :: Eq v => M.Map k v -> v -> [k]
-lookupKey m val = M.foldrWithKey go [] m where
-  go key value found =
-    if value == val
-    then key:found
-    else found
 
 --- *** Parser *** ---
 parseCmd :: BitParser CommandType

@@ -19,7 +19,7 @@ contentBuilder (Int16 num)  = (2, int16BE $ fromIntegral num)
 contentBuilder (Int8 num)   = (1, int8 $ fromIntegral num)
 contentBuilder (Con bool)   = (1, int8 (if bool then 1 else 0))
 contentBuilder (Flags bits) = (1, int8 $ fromIntegral $ bitsToInt bits)
-contentBuilder (QoS qos)    = (1, int8 $ fromIntegral $ mapQoS qos)
+contentBuilder (QoS qos)    = (1, int8 $ fromIntegral $ putQoS qos)
 
 --- *** Additions SizedBuilders *** ---
 groupSizedBuilder :: SizedBuilder -> SizedBuilder -> SizedBuilder

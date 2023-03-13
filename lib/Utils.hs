@@ -2,7 +2,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE InstanceSigs #-}
 
-module Utils(Bit(..), bit, bitVal, bitsToInt, intToBits, Byte, BitParser(..), satisfy, parseBit, parseBits, parseInt, parseString, parseSize) where
+module Utils(Bit(..), bit, bitVal, bitsToInt, intToBits, Byte, BitParser(..), satisfy, parseBit, parseBits, parseInt, parseString, parseSize, parseBool) where
 import Control.Applicative (Alternative(..))
 import Data.Char (chr)
 
@@ -69,6 +69,9 @@ satisfy f = BitParser $ \case {(x:xs) -> if f x then (Just x, xs) else (Nothing,
 
 parseBit :: Bit -> BitParser Bit
 parseBit b = satisfy (== b)
+
+parseBool :: BitParser Bool
+parseBool = BitParser $ \case {(I:xs) -> (Just True, xs); (O:xs) -> (Just False, xs); [] -> (Nothing, [])}
 
 parseSize :: Int -> BitParser [Bit]
 parseSize 0 = pure []

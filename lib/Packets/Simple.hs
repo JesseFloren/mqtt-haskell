@@ -1,10 +1,12 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Packets.Simple where
 
 import Packets.Abstract
-import Utils (Bit(..), bit)
+import Utils
 import Data.Maybe (isJust)
+import qualified Data.Map as M
 
 pubFlags :: Dup -> QoS -> Retain -> [Bit]
 pubFlags d q r = [bit d, bit (q == Two), bit (q == One), bit r]
@@ -15,8 +17,9 @@ emptyFlags = [O, O, O, O]
 specFlags :: [Bit]
 specFlags = [O, O, I, O]
 
-connectMessage :: ClientId -> ConnectFlags -> Int -> Packet
-connectMessage cid (ConnectFlags{..}) keepAlive = Packet CONNECT emptyFlags headers payload where
+--- *** Write Packets *** ---
+writeConnectPacket :: ClientId -> ConnectFlags -> KeepAlive -> Packet
+writeConnectPacket cid (ConnectFlags{..}) keepAlive = Packet CONNECT emptyFlags headers payload where
     addOnJust :: [Maybe String] -> [Content] -> [Content]
     addOnJust [] ys = ys
     addOnJust (Just x:xs) ys = addOnJust xs (ys ++ [Str x])
@@ -26,55 +29,115 @@ connectMessage cid (ConnectFlags{..}) keepAlive = Packet CONNECT emptyFlags head
     (flags, payload) = case will of
         (Just (wRetain, wQoS, wTopic, wMessage)) -> (f, addOnJust [username, password] [Str cid, Str wTopic, Str wMessage]) where
             f = [bit (isJust username), bit (isJust password), bit wRetain, bit (wQoS == Two), bit (wQoS == One), I, bit cleanSession, O]
-        (Nothing) -> (f, addOnJust [username, password] [Str cid]) where
+        Nothing -> (f, addOnJust [username, password] [Str cid]) where
             f = [bit (isJust username), bit (isJust password), O, O, O, O, bit cleanSession, O]
 
--- 0; 0x00 Connection accepted
--- 1; 0x01 The Server does not support the level of the MQTT protocol requested by the Client
--- 2; 0x02 The Client identifier is correct UTF-8 but not allowed by the Server
--- 3; 0x03 The Network Connection has been made but the MQTT service is unavailable
--- 4; 0x04 The data in the user name or password is malformed 
--- 5; 0x05 The Client is not authorized to connect
-connackMessage :: Int -> Packet
-connackMessage code = Packet CONNACK emptyFlags [Con True, Int8 code] []
+writeConnackPacket :: SessionPersist -> ConnackResponse -> Packet
+writeConnackPacket sp code = Packet CONNACK emptyFlags [Con sp, Int8 (mapConnackResponse M.! code)] []
 
-publishMessage :: PacketId -> Dup -> Retain -> (Topic, QoS) -> String -> Packet --      Dup QoS Retain  Topic             QoS          Message
-publishMessage pid dup ret (topic, qos) str = Packet PUBLISH (pubFlags dup qos ret) [Str topic, Int16 pid] [Str str]
+writePublishPacket :: PacketId -> PublishFlags -> String -> Packet
+writePublishPacket pid (PublishFlags{..}) str =
+    Packet PUBLISH (pubFlags dup (snd channel) retain) [Str (fst channel), Int16 pid] [Str str]
 
-pubackMessage :: PacketId -> Packet
-pubackMessage pid = Packet PUBACK emptyFlags [Int16 pid] []
+writePubackPacket :: PacketId -> Packet
+writePubackPacket pid = Packet PUBACK emptyFlags [Int16 pid] []
 
-pubrecMessage :: PacketId -> Packet
-pubrecMessage pid = Packet PUBREC emptyFlags [Int16 pid] []
+writePubrecPacket :: PacketId -> Packet
+writePubrecPacket pid = Packet PUBREC emptyFlags [Int16 pid] []
 
-pubrelMessage :: PacketId -> Packet
-pubrelMessage pid = Packet PUBREL specFlags [Int16 pid] []
+writePubrelPacket :: PacketId -> Packet
+writePubrelPacket pid = Packet PUBREL specFlags [Int16 pid] []
 
-pubcompMessage :: PacketId -> Packet
-pubcompMessage pid = Packet PUBCOMP emptyFlags [Int16 pid] []
+writePubcompPacket :: PacketId -> Packet
+writePubcompPacket pid = Packet PUBCOMP emptyFlags [Int16 pid] []
 
-subscribeMessage :: PacketId -> [(Topic, QoS)] -> Packet
-subscribeMessage pid topics = Packet SUBSCRIBE specFlags [Int16 pid] (subTopics topics) where
+writeSubscribePacket :: PacketId -> [(Topic, QoS)] -> Packet
+writeSubscribePacket pid topics = Packet SUBSCRIBE specFlags [Int16 pid] (subTopics topics) where
     subTopics :: [(Topic, QoS)] -> [Content]
     subTopics = concatMap (\(str, qos) -> [Str str, QoS qos])
 
-subackMessage :: PacketId -> Maybe QoS -> Packet
-subackMessage pid Nothing    = Packet SUBACK emptyFlags [Int16 pid] [Int8 0x80]
-subackMessage pid (Just qos) = Packet SUBACK emptyFlags [Int16 pid] [Int8 (mapQoS qos)]
+writeSubackPacket :: PacketId -> Maybe QoS -> Packet
+writeSubackPacket pid Nothing    = Packet SUBACK emptyFlags [Int16 pid] [Int8 0x80]
+writeSubackPacket pid (Just qos) = Packet SUBACK emptyFlags [Int16 pid] [Int8 (putQoS qos)]
 
-ubsubscribeMessage :: PacketId -> [(Topic, QoS)] -> Packet
-ubsubscribeMessage pid topics = Packet UNSUBSCRIBE specFlags [Int16 pid] (subTopics topics) where
+writeUnsubscribePacket :: PacketId -> [(Topic, QoS)] -> Packet
+writeUnsubscribePacket pid topics = Packet UNSUBSCRIBE specFlags [Int16 pid] (subTopics topics) where
     subTopics :: [(Topic, QoS)] -> [Content]
     subTopics = concatMap (\(str, qos) -> [Str str, QoS qos])
 
-unsubackMessage :: PacketId -> Packet 
-unsubackMessage pid = Packet UNSUBACK emptyFlags [Int16 pid] []
+writeUnSubackPacket :: PacketId -> Packet
+writeUnSubackPacket pid = Packet UNSUBACK emptyFlags [Int16 pid] []
 
-pingreqMessage :: Packet
-pingreqMessage = Packet PINGREQ emptyFlags [] []
+writePingreqPacket :: Packet
+writePingreqPacket = Packet PINGREQ emptyFlags [] []
 
-pingrespMessage :: Packet
-pingrespMessage = Packet PINGRESP emptyFlags [] []
+writePingrespPacket :: Packet
+writePingrespPacket = Packet PINGRESP emptyFlags [] []
 
-disconnectMessage :: Packet
-disconnectMessage = Packet DISCONNECT emptyFlags [] []
+writeDisconnectPacket :: Packet
+writeDisconnectPacket = Packet DISCONNECT emptyFlags [] []
+
+--- *** Read Packets *** ---
+findContent :: (Content -> Maybe a) -> [Content] -> Maybe a
+findContent _ [] = Nothing
+findContent f (x:xs) = case f x of {(Just x') -> Just x'; Nothing -> findContent f xs}
+
+maybeTup2 :: (Maybe a, Maybe b) -> Maybe (a, b)
+maybeTup2 (Just x, Just y) = Just (x, y)
+maybeTup2 _ = Nothing
+
+maybeTup3 :: (Maybe a, Maybe b, Maybe c) -> Maybe (a, b, c)
+maybeTup3 (Just x, Just y, Just z) = Just (x, y, z)
+maybeTup3 _ = Nothing
+
+readPacketId :: Packet -> Maybe PacketId
+readPacketId (Packet _ _ header _) = findContent (\case {(Int16 pid) -> Just pid; _ -> Nothing}) header
+
+readConnectPacket :: Packet -> Maybe (ClientId, ConnectFlags, KeepAlive)
+readConnectPacket (Packet _ flags [Str "MQTT", Int8 4, _, Int16 keepAlive] payload) = fst flags' >>= pack payload where
+    flags' = parse ((,,,,,) <$> parseBool <*> parseBool <*> parseBool <*> (getQoS <$> parseInt 2) <*> parseBool <*> parseBool) flags
+    pack :: [Content] -> (Bool, Bool, Bool, QoS, Bool, Bool)-> Maybe (ClientId, ConnectFlags, KeepAlive)
+    pack [Str clientId, Str wTopic, Str wMessage, Str user, Str pass] (True, True, ret, qos, True, cs) = 
+        Just (clientId, ConnectFlags (Just user) (Just pass) (Just (ret, qos, wTopic, wMessage)) cs, keepAlive)
+    pack [Str clientId, Str wTopic, Str wMessage] (False, False, ret, qos, True, cs) = 
+        Just (clientId, ConnectFlags Nothing Nothing (Just (ret, qos, wTopic, wMessage)) cs, keepAlive)
+    pack [Str clientId, Str user, Str pass] (True, True, _, _, False, cs) = 
+        Just (clientId, ConnectFlags (Just user) (Just pass) Nothing cs, keepAlive)
+    pack [Str clientId] (False, False, _, _, False, cs) = 
+        Just (clientId, ConnectFlags Nothing Nothing Nothing cs, keepAlive)
+    pack _ _ = Nothing
+readConnectPacket _ = Nothing
+
+
+readConnackPacket :: Packet -> Maybe (SessionPersist, ConnackResponse)
+readConnackPacket (Packet _ _ header _) = maybeTup2 (sp, resp) where
+    sp = findContent (\case {(Con v) -> Just v; _ -> Nothing}) header
+    resp = findContent (\case {(Int8 v) -> head' $ mapConnackResponse `lookupKey` v; _ -> Nothing}) header
+    head' [] = Nothing
+    head' (x:_) = Just x
+
+readPublishPacket :: Packet -> Maybe (PacketId, PublishFlags, String)
+readPublishPacket p@(Packet _ [dup, qos2, qos1, ret] header payload) = maybeTup3 (pid, flags, msg) where
+    flags = case channel of {(Just c) -> Just PublishFlags{dup= dup==I, retain= ret==I, channel=c}; Nothing -> Nothing}
+    channel = maybeTup2 (topic, qos)
+    pid = readPacketId p
+    topic = findContent (\case {(Str t) -> Just t; _ -> Nothing}) header
+    qos = getQoS <$> case bitsToInt [qos2, qos1] of {3 -> Nothing; x -> Just x}
+    msg = findContent (\case {(Str m) -> Just m; _ -> Nothing}) payload
+readPublishPacket _ = Nothing
+
+readSubscribePacket :: Packet -> Maybe (PacketId, [(Topic, QoS)])
+readSubscribePacket p@(Packet _ _ _ payload) = maybeTup2 (pid, topics payload) where
+    pid = readPacketId p
+    topics :: [Content] -> Maybe [(Topic, QoS)]
+    topics [] = Just []
+    topics (Str t:QoS q:xs) = ((t, q):) <$> topics xs
+    topics _ = Nothing
+
+readSubackPacket :: Packet -> Maybe (PacketId, Maybe QoS)
+readSubackPacket p@(Packet _ _ _ payload) =  maybeTup2 (pid, (getQoS <$>) <$> qos) where
+    pid = readPacketId p
+    qos = findContent (\case {(Int8 0x80) -> Just Nothing; (Int8 v) -> Just (Just v); _ -> Nothing}) payload
+
+readUnsubscribePacket :: Packet -> Maybe (PacketId, [(Topic, QoS)])
+readUnsubscribePacket = readSubscribePacket
