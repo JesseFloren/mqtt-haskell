@@ -6,7 +6,6 @@ module Packets.Parser (byteStringToPacket) where
 import Utils ( intToBits, BitParser (parse), parseInt, parseString, parseSize )
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as C
-import qualified Data.Map as M
 import Control.Applicative (empty, Alternative (some))
 import Packets.Abstract
 
