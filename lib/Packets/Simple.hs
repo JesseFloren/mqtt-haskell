@@ -5,7 +5,7 @@ module Packets.Simple where
 
 import Packets.Abstract
 import Utils
-import Data.Maybe (isJust)
+import Data.Maybe (isJust, catMaybes, mapMaybe)
 import qualified Data.Map as M
 
 pubFlags :: Dup -> QoS -> Retain -> [Bit]
@@ -21,9 +21,7 @@ specFlags = [O, O, I, O]
 writeConnectPacket :: ClientId -> ConnectFlags -> KeepAlive -> Packet
 writeConnectPacket cid (ConnectFlags{..}) keepAlive = Packet CONNECT emptyFlags headers payload where
     addOnJust :: [Maybe String] -> [Content] -> [Content]
-    addOnJust [] ys = ys
-    addOnJust (Just x:xs) ys = addOnJust xs (ys ++ [Str x])
-    addOnJust (Nothing:xs) ys = addOnJust xs ys
+    addOnJust xs ys = ys ++ mapMaybe (Str<$>) xs
     headers :: [Content]
     headers = [Str "MQTT", Int8 4, Flags flags, Int16 keepAlive]
     (flags, payload) = case will of
@@ -57,8 +55,7 @@ writeSubscribePacket pid topics = Packet SUBSCRIBE specFlags [Int16 pid] (subTop
     subTopics = concatMap (\(str, qos) -> [Str str, QoS qos])
 
 writeSubackPacket :: PacketId -> Maybe QoS -> Packet
-writeSubackPacket pid Nothing    = Packet SUBACK emptyFlags [Int16 pid] [Int8 0x80]
-writeSubackPacket pid (Just qos) = Packet SUBACK emptyFlags [Int16 pid] [Int8 (putQoS qos)]
+writeSubackPacket pid qos = Packet SUBACK emptyFlags [Int16 pid] [Int8 (maybe 0x80 putQoS qos)]
 
 writeUnsubscribePacket :: PacketId -> [(Topic, QoS)] -> Packet
 writeUnsubscribePacket pid topics = Packet UNSUBSCRIBE specFlags [Int16 pid] (subTopics topics) where
@@ -97,13 +94,13 @@ readConnectPacket :: Packet -> Maybe (ClientId, ConnectFlags, KeepAlive)
 readConnectPacket (Packet _ _ [Str "MQTT", Int8 4, Flags flags, Int16 keepAlive] payload) = fst flags' >>= pack payload where
     flags' = parse ((,,,,,) <$> parseBool <*> parseBool <*> parseBool <*> (getQoS <$> parseInt 2) <*> parseBool <*> parseBool) flags
     pack :: [Content] -> (Bool, Bool, Bool, QoS, Bool, Bool)-> Maybe (ClientId, ConnectFlags, KeepAlive)
-    pack [Str clientId, Str wTopic, Str wMessage, Str user, Str pass] (True, True, ret, qos, True, cs) = 
+    pack [Str clientId, Str wTopic, Str wMessage, Str user, Str pass] (True, True, ret, qos, True, cs) =
         Just (clientId, ConnectFlags (Just user) (Just pass) (Just (ret, qos, wTopic, wMessage)) cs, keepAlive)
-    pack [Str clientId, Str wTopic, Str wMessage] (False, False, ret, qos, True, cs) = 
+    pack [Str clientId, Str wTopic, Str wMessage] (False, False, ret, qos, True, cs) =
         Just (clientId, ConnectFlags Nothing Nothing (Just (ret, qos, wTopic, wMessage)) cs, keepAlive)
-    pack [Str clientId, Str user, Str pass] (True, True, _, _, False, cs) = 
+    pack [Str clientId, Str user, Str pass] (True, True, _, _, False, cs) =
         Just (clientId, ConnectFlags (Just user) (Just pass) Nothing cs, keepAlive)
-    pack [Str clientId] (False, False, _, _, False, cs) = 
+    pack [Str clientId] (False, False, _, _, False, cs) =
         Just (clientId, ConnectFlags Nothing Nothing Nothing cs, keepAlive)
     pack _ _ = Nothing
 readConnectPacket _ = Nothing
