@@ -5,7 +5,7 @@ module Packets.Simple where
 
 import Packets.Abstract
 import Utils
-import Data.Maybe (isJust, catMaybes, mapMaybe)
+import Data.Maybe (isJust, mapMaybe)
 import qualified Data.Map as M
 
 pubFlags :: Dup -> QoS -> Retain -> [Bit]
@@ -20,15 +20,20 @@ specFlags = [O, O, I, O]
 --- *** Write Packets *** ---
 writeConnectPacket :: ClientId -> ConnectFlags -> KeepAlive -> Packet
 writeConnectPacket cid (ConnectFlags{..}) keepAlive = Packet CONNECT emptyFlags headers payload where
-    addOnJust :: [Maybe String] -> [Content] -> [Content]
-    addOnJust xs ys = ys ++ mapMaybe (Str<$>) xs
+    flags :: Maybe (Retain, QoS, Topic, String) -> [Bit]
+    flags (Just (wRetain, wQoS, _, _)) = 
+        [bit (isJust username), bit (isJust password), bit wRetain, bit (wQoS == Two), bit (wQoS == One), I, bit cleanSession, O]
+    flags Nothing =
+        [bit (isJust username), bit (isJust password), O, O, O, O, bit cleanSession, O]
+    
     headers :: [Content]
-    headers = [Str "MQTT", Int8 4, Flags flags, Int16 keepAlive]
-    (flags, payload) = case will of
-        (Just (wRetain, wQoS, wTopic, wMessage)) -> (f, addOnJust [username, password] [Str cid, Str wTopic, Str wMessage]) where
-            f = [bit (isJust username), bit (isJust password), bit wRetain, bit (wQoS == Two), bit (wQoS == One), I, bit cleanSession, O]
-        Nothing -> (f, addOnJust [username, password] [Str cid]) where
-            f = [bit (isJust username), bit (isJust password), O, O, O, O, bit cleanSession, O]
+    headers = [Str "MQTT", Int8 4, Flags (flags will), Int16 keepAlive]
+
+    payload :: [Content]
+    payload = maybe [Str cid] mapWill will ++ mapMaybe (Str<$>) [username, password] where
+        mapWill :: (Retain, QoS, Topic, String) -> [Content]
+        mapWill (_, _, wTopic, wMessage) = [Str cid, Str wTopic, Str wMessage]
+
 
 writeConnackPacket :: SessionPersist -> ConnackResponse -> Packet
 writeConnackPacket sp code = Packet CONNACK emptyFlags [Con sp, Int8 (mapConnackResponse M.! code)] []
