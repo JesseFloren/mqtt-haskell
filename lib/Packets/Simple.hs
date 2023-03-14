@@ -94,7 +94,7 @@ readPacketId :: Packet -> Maybe PacketId
 readPacketId (Packet _ _ header _) = findContent (\case {(Int16 pid) -> Just pid; _ -> Nothing}) header
 
 readConnectPacket :: Packet -> Maybe (ClientId, ConnectFlags, KeepAlive)
-readConnectPacket (Packet _ flags [Str "MQTT", Int8 4, _, Int16 keepAlive] payload) = fst flags' >>= pack payload where
+readConnectPacket (Packet _ _ [Str "MQTT", Int8 4, Flags flags, Int16 keepAlive] payload) = fst flags' >>= pack payload where
     flags' = parse ((,,,,,) <$> parseBool <*> parseBool <*> parseBool <*> (getQoS <$> parseInt 2) <*> parseBool <*> parseBool) flags
     pack :: [Content] -> (Bool, Bool, Bool, QoS, Bool, Bool)-> Maybe (ClientId, ConnectFlags, KeepAlive)
     pack [Str clientId, Str wTopic, Str wMessage, Str user, Str pass] (True, True, ret, qos, True, cs) = 
