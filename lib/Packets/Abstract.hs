@@ -5,7 +5,7 @@ import Utils (Bit)
 import qualified Data.Map as M
 
 --- *** Packet with Commands *** ---
-data Packet  = Packet CommandType Flags Header Payload deriving (Show)
+data Packet  = Packet CommandType Flags Header Payload deriving (Show, Eq)
 data CommandType = CONNECT
                  | CONNACK
                  | PUBLISH
@@ -48,7 +48,7 @@ data ConnectFlags = ConnectFlags {
         password :: Maybe String,
         will :: Maybe (Retain, QoS, Topic, String),
         cleanSession :: Bool
-} deriving (Show)
+} deriving (Show, Eq)
 
 data ConnackResponse = Accepted | BadProtocalError | BadClientIdError | UnavailableError | BadAuthError | AuthError deriving (Ord, Eq, Show)
 
@@ -64,7 +64,7 @@ data PublishFlags = PublishFlags {
         dup :: Bool,
         retain :: Bool,
         channel :: (Topic, QoS)
-} deriving (Show)
+} deriving (Show, Eq)
 
 putQoS :: QoS -> Int
 putQoS = \case {Zero -> 0; One -> 1; Two -> 2}
@@ -73,7 +73,7 @@ getQoS :: Int -> QoS
 getQoS = \case {1 -> One; 2 -> Two; _ -> Zero}
 
 --- *** Header and Payload Content *** ---
-data Content = Str String | Int16 Int | Flags [Bit] | Con Bool | Int8 Int | QoS QoS deriving (Show)
+data Content = Str String | Int16 Int | Flags [Bit] | Con Bool | Int8 Int | QoS QoS deriving (Show, Eq)
 type Header  = [Content]
 type Payload = [Content]
 type Flags = [Bit]

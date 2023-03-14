@@ -50,5 +50,5 @@ test-suite mqtt-tests
     type:           exitcode-stdio-1.0
     main-is:        Spec.hs
     hs-source-dirs: test
-    other-modules:  Spec.Sanity
+    other-modules:  Spec.Sanity, Arbitrary.Packets, Spec.Packets
     build-depends:  base, mqtt-haskell, tasty, tasty-quickcheck, tasty-hunit
