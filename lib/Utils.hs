@@ -1,7 +1,9 @@
-module Utils where
-import qualified Data.ByteString.Char8 as C
+module Utils
+  (
+    module Utils.Bits,
+    module Utils.BitParsing,
+  )
+  where
 
-
-helloWorld :: String
-helloWorld = ""
-
+import Utils.Bits
+import Utils.BitParsing
