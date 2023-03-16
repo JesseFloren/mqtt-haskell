@@ -29,7 +29,7 @@ executable mqtt-client
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
-    build-depends:    base >=4.16.4.0, mqtt-haskell
+    build-depends:    base >=4.16.4.0, mqtt-haskell, async
     hs-source-dirs:   src-client
     default-language: Haskell2010
 
