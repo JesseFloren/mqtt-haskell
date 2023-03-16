@@ -5,7 +5,7 @@ packages:
 
 ghc-options:
     # All packages
-    "$locals": -Wall
+    "$locals": -Wall 
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -16,8 +16,6 @@ ghc-options:
 #   subdirs:
 #   - auto-update
 #   - wai
-packages:
-- .
 # Dependency packages to be pulled from upstream that are not in the resolver.
 # These entries can reference officially published versions as well as
 # forks / in-progress versions pinned to a git hash. For example:
