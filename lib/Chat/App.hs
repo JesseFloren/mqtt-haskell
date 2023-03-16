@@ -16,15 +16,8 @@ putMessage :: AppState -> Message -> AppState
 putMessage (AppState user chat' sock) msg = 
   AppState user (msg : chat') sock
 
-emptyState :: String -> AppState
-emptyState u = AppState u []
-
-putMessage :: AppState -> String -> AppState
-putMessage (AppState user chat) msg = 
-  AppState user (Message {message = msg, author = user} : chat)
-
 printStateInfo :: AppState -> IO ()
-printStateInfo state = putStrLn $ "Logged in as " ++ username state
+printStateInfo state = putStrLn $ "Logged in as " ++ username state ++ " (connected to " ++ show (socket state) ++ ")"
 
 -- Left user message, Right server message
 -- TODO refine this into its own data type
@@ -56,9 +49,6 @@ run = do
       cursorUp (length newChat)
       putStrLn ""
       runLoop newState
-
-printStateInfo :: AppState -> IO ()
-printStateInfo state = putStrLn $ "Logged in as " ++ username state
 
 showChat :: Chat -> String
 showChat = unlines . map show . reverse 
@@ -94,5 +84,4 @@ promptUsername = do
 getMessages :: IO [Message]
 getMessages = pure []
 
-printStateInfo :: AppState -> IO ()
-printStateInfo state = putStrLn $ "Logged in as " ++ username state ++ " (connected to " ++ show (socket state) ++ ")"
+
