@@ -44,11 +44,13 @@ run = do
       newState <- handleChatEvent state =<< awaitChatEvent
       let newChat = chat newState
 
-      putStr (showChat newChat)
-
-      cursorUp (length newChat)
-      putStrLn ""
+      refreshChat newChat
       runLoop newState
+
+refreshChat :: Chat -> IO ()
+refreshChat cs = do
+  setCursorPosition 1 0
+  putStr (showChat cs)
 
 showChat :: Chat -> String
 showChat = unlines . map show . reverse 

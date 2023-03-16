@@ -7,8 +7,8 @@ import Control.Concurrent (threadDelay)
 
 main :: IO ()
 main = do
-    -- App.run
-    runClient
+    App.run
+    -- runClient
 
 
 runClient :: IO ()
