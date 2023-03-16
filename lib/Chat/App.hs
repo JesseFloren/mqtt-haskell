@@ -84,4 +84,3 @@ promptUsername = do
 getMessages :: IO [Message]
 getMessages = pure []
 
-
