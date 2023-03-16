@@ -5,7 +5,7 @@ import Utils (Bit)
 import qualified Data.Map as M
 
 --- *** Packet with Commands *** ---
-data Packet  = Packet CommandType Flags Header Payload deriving (Show, Eq)
+data Packet  = Packet {cmd :: CommandType, flags :: Flags, header :: Header, payload :: Payload} deriving (Show, Eq)
 data CommandType = CONNECT
                  | CONNACK
                  | PUBLISH
