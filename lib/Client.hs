@@ -1,71 +1,60 @@
-module Client where
-import Network.Socket
+module Client (open, send, receive, subscribe, close, Connection(..), SocketAddress(..), IPAddress(..), Port(..), socketAddress) where
+
+import Network.Socket (addrFlags, getAddrInfo, defaultHints, addrAddress, defaultProtocol)
 import Network.Socket.ByteString (recv, sendAll)
 import qualified Data.ByteString.Char8 as C
-import Data.ByteString.Char8 (unpack)
+import qualified Network.Socket as S
 
-type Connection = Socket
+type Connection = S.Socket
 
 newtype IPAddress = IP String
 newtype Port = Port Int
 data SocketAddress = SocketAddress IPAddress Port
 
-runClient :: IO ()
-runClient = do
-    -- create socket
-    let ip = IP "127.0.0.1"
-        port = Port 8000
-    sock <- subscribe (SocketAddress ip port)
-    -- get input, send message
-    s <- Prelude.getLine
-    sendAll sock $ C.pack s
-    -- receive response
-    response <- recv sock 1024
-    putStrLn $ "Received: " ++ show response
-    -- create type of client based on input
-    createClient sock s
+socketAddress :: String -> Int -> SocketAddress
+socketAddress ip port = SocketAddress (IP ip) (Port port)
 
-    where 
-        createClient sock "pub" = do
-            putStrLn "Entering pub mode" 
-            talkToServer sock 
-        createClient sock _     = do
-            putStrLn "Entering sub mode" 
-            listenToServer sock
-
-{-| 
-    Takes a terminal input and sends it of to the server. The gathering of the terminal input is
-    a blocking operation
--}
-talkToServer :: Socket -> IO ()
-talkToServer sock = do
-    s <- Prelude.getLine
-    sendAll sock $ C.pack s
-    talkToServer sock
-
--- | Waits for a message from the server and then prints it on screen. The recv function is blocking
-listenToServer :: Socket -> IO ()
-listenToServer sock = do
-    response <- recv sock 1024
-    putStrLn $ "Received: " ++ unpack response
-    listenToServer sock
-
-subscribe :: SocketAddress -> IO Socket
-subscribe socketAddress = do
+-- | Opens a connection to a Broker at a specified address 
+open :: SocketAddress -> IO Connection
+open addr = do
   -- Create socket
-  sock <- socket AF_INET Stream defaultProtocol
-  serverAddr <- createSocketAddress socketAddress
+  sock <- S.socket S.AF_INET S.Stream  defaultProtocol
+  serverAddr <- createSocketAddress addr
   
   -- Connect socket to address
-  connect sock serverAddr
+  S.connect sock serverAddr
 
   return sock
     where 
-      createSocketAddress :: SocketAddress -> IO SockAddr
+      createSocketAddress :: SocketAddress -> IO S.SockAddr
       createSocketAddress (SocketAddress (IP ip) (Port port)) = do
         info <- getAddrInfo 
-                  (Just defaultHints { addrFlags = [AI_ADDRCONFIG] }) 
+                  (Just defaultHints { addrFlags = [S.AI_ADDRCONFIG] }) 
                   (Just ip) 
                   (Just (show port)) 
         return (head $ map addrAddress info)
+
+
+type Message = String
+
+-- | Sends a message to the Broker
+send :: Message -> Connection -> IO ()
+send msg sock = sendAll sock $ C.pack msg
+
+-- | Waits for a message to be received
+receive :: Connection -> IO Message
+receive sock = C.unpack <$> recv sock 1024
+
+-- | Closes the connection to the Broker gracefully
+close :: Connection -> IO ()
+close = do
+  -- MQTT-specific actions
+  S.close 
+
+
+-- | Subscribes the client to a topic
+subscribe :: Connection -> IO ()
+subscribe conn = do
+  -- MQTT-specific actions
+  return ()
 

@@ -5,16 +5,12 @@ import Chat.Terminal (prompt, resetScreen)
 import System.IO (hSetBuffering, stdout, BufferMode(LineBuffering))
 import System.Console.ANSI (cursorUp)
 
-import Network.Socket (Socket)
-import Network.Socket.ByteString (recv, sendAll)
-import qualified Data.ByteString.Char8 as C
-
 import qualified Control.Concurrent.Async as A
-import Client (IPAddress(..), Port(..), SocketAddress(..), subscribe)
+import qualified Client as Client
 
 type Chat = [Message]
 
-data AppState = AppState {username :: String, chat :: Chat, socket :: Socket}
+data AppState = AppState {username :: String, chat :: Chat, socket :: Client.Connection}
 
 putMessage :: AppState -> Message -> AppState
 putMessage (AppState user chat' sock) msg = 
@@ -30,8 +26,11 @@ run = do
   resetScreen
   
   state <- login
+  
   printStateInfo state
   runLoop state
+  
+  Client.close (socket state)
   where 
     runLoop :: AppState -> IO ()
     runLoop state = do
@@ -51,10 +50,10 @@ run = do
 showChat :: Chat -> String
 showChat = unlines . map show . reverse 
 
-receiveMessage :: Socket -> IO Message 
+receiveMessage :: Client.Connection -> IO Message 
 receiveMessage sock = do
-  response <- recv sock 1024
-  return (Message (C.unpack response) "<unknown user>")
+  response <- Client.receive sock
+  return (Message response "<unknown user>")
 
 handleChatEvent :: AppState -> ChatEvent -> IO AppState
 handleChatEvent state (Left userMsg) = do
@@ -65,16 +64,15 @@ handleChatEvent state (Right serverMsg) = return (putMessage state serverMsg)
 
 
 -- TODO move to own file
-sendMessage :: Socket -> Message -> IO ()
-sendMessage sock msg = do
-  sendAll sock $ C.pack $ show msg
+sendMessage :: Client.Connection -> Message -> IO ()
+sendMessage sock msg = Client.send (show msg) sock
 
 login :: IO AppState
 login = AppState <$> promptUsername <*> getMessages <*> ioSocket
   where 
-    ip = IP "127.0.0.1"
-    port = Port 8000
-    ioSocket = subscribe (SocketAddress ip port)
+    ip = "127.0.0.1"
+    port = 8000
+    ioSocket = Client.open (Client.socketAddress ip port)
 
 promptUsername :: IO String
 promptUsername = do
