@@ -1,6 +1,7 @@
 module Main where
 
 import qualified Client as Client
+import qualified Socket as Sock
 import qualified Chat.App as App
 import qualified Control.Concurrent.Async as A
 import Control.Concurrent (threadDelay)
@@ -16,7 +17,7 @@ runClient = do
     -- create socket
     let ip = "127.0.0.1"
         port = 8000
-        address = Client.socketAddress ip port
+        address = Sock.socketAddress ip port
     sock <- Client.open address
 
     -- get input, send message

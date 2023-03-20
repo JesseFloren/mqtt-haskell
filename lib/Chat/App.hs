@@ -3,10 +3,11 @@ module Chat.App (run) where
 import Chat.Message (Message(..))
 import Chat.Terminal (prompt, resetScreen)
 import System.IO (hSetBuffering, stdout, BufferMode(LineBuffering))
-import System.Console.ANSI (cursorUp, clearLine, clearScreen, setCursorPosition)
+import System.Console.ANSI (setCursorPosition)
 
 import qualified Control.Concurrent.Async as A
 import qualified Client as Client
+import qualified Socket as Sock
 
 type Chat = [Message]
 
@@ -76,7 +77,7 @@ login = AppState <$> promptUsername <*> getMessages <*> ioSocket
   where 
     ip = "127.0.0.1"
     port = 8000
-    ioSocket = Client.open (Client.socketAddress ip port)
+    ioSocket = Client.open (Sock.socketAddress ip port)
 
 promptUsername :: IO String
 promptUsername = do
