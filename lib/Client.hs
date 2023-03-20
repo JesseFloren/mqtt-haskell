@@ -1,43 +1,57 @@
-{-# LANGUAGE RecordWildCards #-}
-module Client (clientOpen, clientClose, clientSend, sub, subGroup, Subscription, ClientConfig(..)) where
+module Client where
+import Network.Socket
+import Network.Socket.ByteString
+import qualified Data.ByteString.Char8 as C
+import Data.ByteString.Char8 (unpack)
 
-import Socket.Client
-import Network.Socket.ByteString ()
-import Packets.Abstract ( Topic, ClientId )
-import Control.Concurrent (forkIO, killThread)
-import Socket.Base ( createSocket )
-import qualified Data.Map as M
-import Network.Socket (close)
+runClient :: IO ()
+runClient = do
+    -- create socket
+    sock <- subscribe "127.0.0.1" 8000
+    -- get input, send message
+    s <- Prelude.getLine
+    sendAll sock $ C.pack s
+    -- receive response
+    response <- recv sock 1024
+    putStrLn $ "Received: " ++ show response
+    -- create type of client based on input
+    createClient sock s
 
---- *** Client Functions *** ---
-clientOpen :: ClientId -> ClientConfig -> Subscription -> IO MqttClient
-clientOpen cid (ClientConfig {..}) s = do
-    sock <- createSocket (hostname, portnumber)
-    -- TODO-1: Implement handleConnect in Socket.Client
-    conResp <- handleConnect sock
-    -- TODO-2: Implement handleSubscribe in Socket.Client
-    subResp <- handleSubscribe sock quality s
-    -- TODO-3: Check conResp before subscribing
-    -- TODO-4: Check subResp before opening listenPublish
-    thread <- forkIO $ listenPublish sock quality s
-    return $ MqttClient cid sock thread (M.keys s)
+    where 
+        createClient sock "pub" = do
+            putStrLn "Entering pub mode" 
+            talkToServer sock 
+        createClient sock _     = do
+            putStrLn "Entering sub mode" 
+            listenToServer sock
 
-clientClose :: MqttClient -> IO ()
-clientClose (MqttClient {..}) = do
-    -- TODO-5: Implement handleUnsubscribe
-    unSubResp <- handleUnsubscribe socket subscriptions
-    -- TODO-6: Check unSubResp before disconnecting
-    _ <- handleDisconnect socket
-    killThread thread
-    close socket
+{-| 
+    Takes a terminal input and sends it of to the server. The gathering of the terminal input is
+    a blocking operation
+-}
+talkToServer :: Socket -> IO ()
+talkToServer sock = do
+    s <- Prelude.getLine
+    sendAll sock $ C.pack s
+    talkToServer sock
 
--- TODO-7: Implement clientSend
-clientSend :: ClientSocket -> Topic -> String -> IO ()
-clientSend = undefined
+-- | Waits for a message from the server and then prints it on screen. The recv function is blocking
+listenToServer :: Socket -> IO ()
+listenToServer sock = do
+    response <- recv sock 1024
+    putStrLn $ "Received: " ++ unpack response
+    listenToServer sock
 
---- *** Subscription Building *** ---
-subGroup :: [Subscription] -> Subscription
-subGroup = M.unions
+subscribe :: String -> Int -> IO Socket
+subscribe addr port = do
+    -- Create socket
+    sock <- socket AF_INET Stream defaultProtocol
 
-sub :: Topic -> (ClientSocket -> String -> IO ()) -> Subscription
-sub topic callback = M.fromList [(topic, callback)]
+    -- Create address
+    serverAddr <- getAddrInfo (Just defaultHints { addrFlags = [AI_ADDRCONFIG] }) (Just addr) (Just (show port)) 
+        >>= \x -> return (head $ map addrAddress x)
+    
+    -- Connect socket to address
+    connect sock serverAddr
+
+    return sock
