@@ -9,7 +9,7 @@ import Network.Socket.ByteString ( recv, sendAll )
 createServer :: PortNumber -> IO Socket
 createServer port = do
     sock <- socket AF_INET Stream defaultProtocol
-    serverAddr <- formatAddress (Nothing, Just port)
+    serverAddr <- formatAddress (Just "127.0.0.1", Just port)
     bind sock serverAddr
     listen sock 5
     return sock
