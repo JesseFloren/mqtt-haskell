@@ -10,11 +10,15 @@ import Data.Bits (shift, (.|.))
 import Data.Word 
 
 
+-- Necessary because we cannot create an instance for the tuple (CommandType, Flags)
+data PacketHeader = PHeader CommandType Flags
+
 class Serialisable s where
   serialise :: s -> C.ByteString
   
 (<+>) :: (Serialisable a, Serialisable b) => a -> b -> C.ByteString
 (<+>) a b = serialise a `C.append` serialise b
+
 
 instance Serialisable s => Serialisable [s] where
   serialise :: [s] -> C.ByteString
@@ -23,9 +27,6 @@ instance Serialisable s => Serialisable [s] where
 instance Serialisable Packet where
   serialise :: Packet -> C.ByteString
   serialise (Packet cmd flags header payload) = PHeader cmd flags <+> header <+> payload
-
--- Necessary because we cannot create an instance for the tuple (CommandType, Flags)
-data PacketHeader = PHeader CommandType Flags
 
 -- | CommandType and Flags are stored in the same byte, so they have a shared instance
 instance Serialisable PacketHeader where
