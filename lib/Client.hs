@@ -4,6 +4,8 @@ import Network.Socket.ByteString (recv, sendAll)
 import qualified Data.ByteString.Char8 as C
 import qualified Network.Socket as S
 import qualified Socket as Sock
+import Packets.Abstract
+import Packets.Parser
 
 type Connection = S.Socket
 
@@ -27,7 +29,9 @@ send msg sock = sendAll sock $ C.pack msg
 
 -- | Waits for a message to be received
 receive :: Connection -> IO Message
-receive sock = C.unpack <$> recv sock 1024
+receive sock = extractMessage <$> receivePacket sock
+  where
+    extractMessage (Packet PUBLISH _ _ [Str s]) = s -- purposefully naive implementation as the protocol has yet to be described
 
 -- | Closes the connection to the Broker gracefully
 close :: Connection -> IO ()
@@ -42,3 +46,9 @@ subscribe conn = do
   -- MQTT-specific actions
   return ()
 
+receivePacket :: Connection -> IO Packet 
+receivePacket conn = do
+  mPacket <- byteStringToPacket <$> recv conn 1024
+  case mPacket of
+    Nothing  -> receivePacket conn
+    (Just p) -> return p

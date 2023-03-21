@@ -3,9 +3,28 @@ module Packets.Abstract where
 
 import Utils (Bit)
 import qualified Data.Map as M
+import Data.Word 
 
 --- *** Packet with Commands *** ---
+{--
+TODO add documentation about Packet structure
+
+CommandType - specifies packet role in MQTT protocol
+Flags - 4-bit sequence specifying, for example: whether it's a duplicate, the QoS level or retainment policy
+Header - ???
+Payload - contents of the Packet
+
+--}
 data Packet  = Packet CommandType Flags Header Payload deriving (Show, Eq)
+
+{--
+TODO finish this partial documentation
+Command types 
+
+PUBLISH
+  A PUBLISH packet is sent from a Client to a Server or from a Server to a Client to transport an Application Message.
+
+--}
 data CommandType = CONNECT
                  | CONNACK
                  | PUBLISH
@@ -22,7 +41,7 @@ data CommandType = CONNECT
                  | DISCONNECT
                  deriving (Ord, Eq, Show)
 
-commandMap :: M.Map CommandType Int
+commandMap :: M.Map CommandType Word8
 commandMap = M.fromList [(CONNECT, 1), (CONNACK, 2), (PUBLISH, 3), (PUBACK, 4), (PUBREC, 5), (PUBREL, 6), (PUBCOMP, 7),
         (SUBSCRIBE, 8), (SUBACK, 9), (UNSUBSCRIBE, 10), (UNSUBACK, 11), (PINGREQ, 12), (PINGRESP, 13), (DISCONNECT, 14)]
 
@@ -32,6 +51,10 @@ lookupKey m val = M.foldrWithKey go [] m where
     if value == val
     then key:found
     else found
+
+toWord8 :: CommandType -> Word8
+toWord8 cmd | Just i <- cmd `M.lookup` commandMap = i
+          | otherwise = error ("could not find command " ++ show cmd)
 
 --- *** Flags *** ---
 data QoS      = Zero | One | Two deriving (Eq, Ord, Show)

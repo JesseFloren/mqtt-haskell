@@ -4,14 +4,14 @@ import Data.ByteString.Builder (Builder, int16BE, int8, stringUtf8, toLazyByteSt
 import Packets.Abstract
 import Data.ByteString (ByteString, toStrict)
 import qualified Data.Map as M
-import Utils (bitsToInt, intToBits)
+import Utils (bitsToInt, bitsToBitList)
 
 --- *** SizedBuilder: Keeps track of amount of bytes are being build *** ---
 type SizedBuilder = (Int, Builder)
 
 --- *** Builder *** ---
 cmdBuilder :: CommandType -> Flags -> Builder
-cmdBuilder x f = int8 . fromIntegral . bitsToInt $ intToBits 4 (commandMap M.! x) ++ f
+cmdBuilder x f = int8 . fromIntegral . bitsToInt $ bitsToBitList 4 (commandMap M.! x) ++ f
 
 contentBuilder :: Content -> SizedBuilder
 contentBuilder (Str str)    = (length str + 2, int16BE (fromIntegral $ length str) <> stringUtf8 str)
