@@ -1,5 +1,4 @@
 module Utils.Queue where
-import Control.Concurrent (MVar, newEmptyMVar, putMVar, newMVar, takeMVar, readMVar)
 
 data Queue a = Queue a (Queue a) | End
 

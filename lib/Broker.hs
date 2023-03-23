@@ -1,9 +1,8 @@
-{-# LANGUAGE LambdaCase #-}
 module Broker where
 
 import Network.Socket
 import Control.Concurrent
-import Socket.Base (createServer, recvPacket, sendPacket)
+import Socket.Base (createServer)
 import Packets.Abstract ( QoS, Topic )
 import Utils.Queue ( Queue )
 
