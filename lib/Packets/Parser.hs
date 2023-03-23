@@ -8,11 +8,13 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as C
 import Control.Applicative (empty, Alternative (some))
 import Packets.Abstract
+import Packets.CommandType
+import qualified Packets.CommandType as CT
 
 
 --- *** Parser *** ---
 parseCmd :: BitParser CommandType
-parseCmd = head . lookupKey commandMap <$> parseWord4
+parseCmd = CT.fromWord8 <$> parseWord4
 
 parseStr :: BitParser Content
 parseStr = Str <$> (parseInt 16 >>= parseString)

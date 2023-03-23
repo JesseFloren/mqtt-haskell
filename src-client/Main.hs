@@ -1,5 +1,6 @@
 module Main where
 
+import Client.Connection
 import qualified Client as Client
 import qualified Socket as Sock
 import qualified Chat.App as App
@@ -18,25 +19,30 @@ runClient = do
     let ip = "127.0.0.1"
         port = 8000
         address = Sock.socketAddress ip port
-    sock <- Client.open address
+    conn <- Client.open address
 
     -- get input, send message
     s <- Prelude.getLine
-    Client.send s sock
+    (Client.send `apply` conn) s
 
     -- receive response
-    loop sock
+    loop `apply` conn
     
     -- -- create type of client based on input
     -- createClient sock s
-    Client.close sock
+    Client.close `apply` conn
 
     where 
-      loop :: Client.Connection -> IO ()
-      loop conn = do
-        response <- Client.receive conn `A.race` (getLine >>= \s -> Client.send s conn) `A.race` threadDelay 100 
-        putStrLn $ "Received: " ++ show response
-        loop conn
+      loop :: ConnAction (IO ())
+      loop = do
+        send <- Client.send
+        receive <- Client.receive
+        let loop' :: IO ()
+            loop' = do
+              response <- receive `A.race` (getLine >>= \s -> send s) `A.race` threadDelay 100 
+              putStrLn $ "Received: " ++ show response
+              loop'
+        return loop'
       
 
       -- createClient sock "pub" = do

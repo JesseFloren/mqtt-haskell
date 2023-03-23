@@ -16,8 +16,8 @@ extra-source-files:
 
 library
     hs-source-dirs:  lib
-    exposed-modules: Utils, Broker, Client, Packets, Chat.App, Socket, Utils.Bits
-    other-modules:   Chat.Message, Chat.Terminal, Packets.Simple, Packets.Builder, Packets.Parser, Packets.Abstract, Packets.Serialisation, Utils.BitParsing
+    exposed-modules: Utils, Broker, Client, Client.Connection, Packets, Chat.App, Socket, Utils.Bits
+    other-modules:   Chat.Message, Chat.Terminal, Packets.Simple, Packets.Builder, Packets.Parser, Packets.Abstract, Packets.ConnackResponse, Packets.CommandType, Packets.IO, Utils.BitParsing, Utils.Map
     build-depends:   base >=4.16.4.0, network >= 0.1.0.1, bytestring, ansi-terminal, containers >= 0.6.5.1, async
     default-language: Haskell2010
 
@@ -50,5 +50,5 @@ test-suite mqtt-tests
     type:           exitcode-stdio-1.0
     main-is:        Spec.hs
     hs-source-dirs: test
-    other-modules:  Spec.Sanity, Arbitrary.Packets, Spec.Packets
+    other-modules:  Spec.Sanity, Arbitrary.Packets, Spec.Packets, Spec.Utils.Bits
     build-depends:  base, mqtt-haskell, tasty, tasty-quickcheck, tasty-hunit

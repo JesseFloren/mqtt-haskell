@@ -3,7 +3,7 @@ module Packets.Abstract where
 
 import Utils (Bit)
 import qualified Data.Map as M
-import Data.Word 
+import Packets.CommandType
 
 --- *** Packet with Commands *** ---
 {--
@@ -15,48 +15,18 @@ Header - ???
 Payload - contents of the Packet
 
 --}
-data Packet  = Packet CommandType Flags Header Payload deriving (Show, Eq)
+data Packet = Packet CommandType Flags Header Payload deriving (Show, Eq)
 
-{--
-TODO finish this partial documentation
-Command types 
+-- Common to ALL packet types
+type PacketHeader = (CommandType, Flags)
+packetHeader :: Packet -> PacketHeader
+packetHeader (Packet cmd fs _ _) = (cmd, fs)
 
-PUBLISH
-  A PUBLISH packet is sent from a Client to a Server or from a Server to a Client to transport an Application Message.
 
---}
-data CommandType = CONNECT
-                 | CONNACK
-                 | PUBLISH
-                 | PUBACK
-                 | PUBREC
-                 | PUBREL
-                 | PUBCOMP
-                 | SUBSCRIBE
-                 | SUBACK
-                 | UNSUBSCRIBE
-                 | UNSUBACK
-                 | PINGREQ
-                 | PINGRESP
-                 | DISCONNECT
-                 deriving (Ord, Eq, Show)
-
-commandMap :: M.Map CommandType Word8
-commandMap = M.fromList [(CONNECT, 1), (CONNACK, 2), (PUBLISH, 3), (PUBACK, 4), (PUBREC, 5), (PUBREL, 6), (PUBCOMP, 7),
-        (SUBSCRIBE, 8), (SUBACK, 9), (UNSUBSCRIBE, 10), (UNSUBACK, 11), (PINGREQ, 12), (PINGRESP, 13), (DISCONNECT, 14)]
-
-lookupKey :: Eq v => M.Map k v -> v -> [k]
-lookupKey m val = M.foldrWithKey go [] m where
-  go key value found =
-    if value == val
-    then key:found
-    else found
-
-toWord8 :: CommandType -> Word8
-toWord8 cmd | Just i <- cmd `M.lookup` commandMap = i
-          | otherwise = error ("could not find command " ++ show cmd)
 
 --- *** Flags *** ---
+type Flags = [Bit]
+
 data QoS      = Zero | One | Two deriving (Eq, Ord, Show)
 type Dup      = Bool
 type Retain   = Bool
@@ -73,16 +43,6 @@ data ConnectFlags = ConnectFlags {
         cleanSession :: Bool
 } deriving (Show, Eq)
 
-data ConnackResponse = Accepted | BadProtocalError | BadClientIdError | UnavailableError | BadAuthError | AuthError deriving (Ord, Eq, Show)
-
-mapConnackResponse :: M.Map ConnackResponse Int
-mapConnackResponse = M.fromList [(Accepted, 0),
-                                (BadProtocalError, 1),
-                                (BadClientIdError, 2),
-                                (UnavailableError, 3),
-                                (BadAuthError, 4),
-                                (AuthError, 5)]
-
 data PublishFlags = PublishFlags {
         dup :: Bool,
         retain :: Bool,
@@ -97,9 +57,12 @@ getQoS = \case {1 -> One; 2 -> Two; _ -> Zero}
 
 --- *** Header and Payload Content *** ---
 data Content = Str String | Int16 Int | Flags [Bit] | Con Bool | Int8 Int | QoS QoS deriving (Show, Eq)
+
+-- | Variable Header. Common to most but not all packets
 type Header  = [Content]
+
+-- | Present in some but not all packets
 type Payload = [Content]
-type Flags = [Bit]
 
 
 

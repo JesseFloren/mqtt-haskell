@@ -4,9 +4,11 @@
 module Packets.Simple where
 
 import Packets.Abstract
+import Packets.ConnackResponse
+import qualified Packets.ConnackResponse as CR
+import Packets.CommandType
 import Utils
 import Data.Maybe (isJust, mapMaybe)
-import qualified Data.Map as M
 
 pubFlags :: Dup -> QoS -> Retain -> [Bit]
 pubFlags d q r = [bit d, bit (q == Two), bit (q == One), bit r]
@@ -36,7 +38,7 @@ writeConnectPacket cid (ConnectFlags{..}) keepAlive = Packet CONNECT emptyFlags 
 
 
 writeConnackPacket :: SessionPersist -> ConnackResponse -> Packet
-writeConnackPacket sp code = Packet CONNACK emptyFlags [Con sp, Int8 (mapConnackResponse M.! code)] []
+writeConnackPacket sp code = Packet CONNACK emptyFlags [Con sp, Int8 (CR.toInt code)] []
 
 writePublishPacket :: PacketId -> PublishFlags -> String -> Packet
 writePublishPacket pid (PublishFlags{..}) str =
@@ -114,9 +116,7 @@ readConnectPacket _ = Nothing
 readConnackPacket :: Packet -> Maybe (SessionPersist, ConnackResponse)
 readConnackPacket (Packet _ _ header _) = maybeTup2 (sp, resp) where
     sp = findContent (\case {(Con v) -> Just v; _ -> Nothing}) header
-    resp = findContent (\case {(Int8 v) -> head' $ mapConnackResponse `lookupKey` v; _ -> Nothing}) header
-    head' [] = Nothing
-    head' (x:_) = Just x
+    resp = findContent (\case {(Int8 v) -> Just (CR.fromInt v); _ -> Nothing}) header
 
 readPublishPacket :: Packet -> Maybe (PacketId, PublishFlags, String)
 readPublishPacket p@(Packet _ [dup, qos2, qos1, ret] header payload) = maybeTup3 (pid, flags, msg) where
