@@ -48,23 +48,3 @@ handleConnect = undefined
 
 handleSubscribe :: Socket -> IO (Maybe [(Topic, QoS)])
 handleSubscribe = undefined
-
--- queueHandler :: Q.MQueue Message -> MVar [Connection] -> IO ()
--- queueHandler queue conns = Q.mPop queue >>= \case
---     Nothing -> Q.mEmpty >>= \x -> queueHandler x conns
---     (Just x) -> do
---         connections <- readMVar conns
---         mapM_ (publishToClient x) $ filterSubs (\(t, _) -> t == topic x) connections
---         queueHandler queue conns
-
--- publishToClient :: Message -> Connection -> IO ()
--- publishToClient = undefined
-
--- listenToClient :: Socket -> IO ()
--- listenToClient sock = do
---     --- Connect message handling
---     handleConnect
---     --- Subscribe message handling
---     handleSubscribe
---     --- Listen publish
---     undefined
