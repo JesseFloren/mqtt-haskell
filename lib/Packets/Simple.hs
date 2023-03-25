@@ -21,11 +21,11 @@ specFlags = [O, O, I, O]
 writeConnectPacket :: ClientId -> ConnectFlags -> KeepAlive -> Packet
 writeConnectPacket cid (ConnectFlags{..}) keepAlive = Packet CONNECT emptyFlags headers payload where
     flags :: Maybe (Retain, QoS, Topic, String) -> [Bit]
-    flags (Just (wRetain, wQoS, _, _)) = 
+    flags (Just (wRetain, wQoS, _, _)) =
         [bit (isJust username), bit (isJust password), bit wRetain, bit (wQoS == Two), bit (wQoS == One), I, bit cleanSession, O]
     flags Nothing =
         [bit (isJust username), bit (isJust password), O, O, O, O, bit cleanSession, O]
-    
+
     headers :: [Content]
     headers = [Str "MQTT", Int8 4, Flags (flags will), Int16 keepAlive]
 
@@ -59,8 +59,8 @@ writeSubscribePacket pid topics = Packet SUBSCRIBE specFlags [Int16 pid] (subTop
     subTopics :: [(Topic, QoS)] -> [Content]
     subTopics = concatMap (\(str, qos) -> [Str str, QoS qos])
 
-writeSubackPacket :: PacketId -> Maybe QoS -> Packet
-writeSubackPacket pid qos = Packet SUBACK emptyFlags [Int16 pid] [Int8 (maybe 0x80 putQoS qos)]
+writeSubackPacket :: PacketId -> [Maybe QoS] -> Packet
+writeSubackPacket pid qos = Packet SUBACK emptyFlags [Int16 pid] (map (Int8 . maybe 0x80 putQoS) qos)
 
 writeUnsubscribePacket :: PacketId -> [(Topic, QoS)] -> Packet
 writeUnsubscribePacket pid topics = Packet UNSUBSCRIBE specFlags [Int16 pid] (subTopics topics) where
