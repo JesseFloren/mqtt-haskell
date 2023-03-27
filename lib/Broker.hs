@@ -27,21 +27,33 @@ acceptLoop sock listMVars = do
     (conn, clientAddr) <- accept sock
     putStrLn $ "Connection from " ++ show clientAddr
     msg <- recv conn 1024
-    sendAll conn $ C.pack $ "Server: " ++ unpack msg 
-    _ <- createHandler conn (unpack msg)
+    putStrLn $ C.unpack msg
+    if not (C.null msg) then sendAll conn msg else return ()
+    _ <- createHandler conn 
     acceptLoop sock listMVars
 
     where
-        createHandler conn "pub" = do
+        createHandler :: Socket -> IO (ThreadId, ThreadId)
+        createHandler conn = do
+            pubId <- createPub conn
             putStrLn "Created pub"
-            forkIO $ pubHandler conn listMVars 
-        createHandler conn _     = do
+            
+            subId <- createSub conn
             putStrLn "Created sub"
-            subMVar <- newEmptyMVar
-            list <- takeMVar listMVars
-            -- When a new subscriber is added, their shared memory space is added to the list of the publisher
-            putMVar listMVars $ list ++ [subMVar]
-            forkIO $ subHandler conn subMVar
+            return (pubId, subId)
+
+        createPub :: Socket -> IO ThreadId
+        createPub conn = forkIO $ pubHandler conn listMVars 
+
+        createSub :: Socket -> IO ThreadId
+        createSub conn = do
+          subMVar <- newEmptyMVar
+          list <- takeMVar listMVars
+          -- When a new subscriber is added, their shared memory space is added to the list of the publisher
+          putMVar listMVars $ list ++ [subMVar]
+          forkIO $ subHandler conn subMVar
+
+
 
 {-|
     pubHandler receives messages from publishers after which it writes the message in all the shared memory

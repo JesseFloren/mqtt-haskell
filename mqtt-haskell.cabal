@@ -16,9 +16,9 @@ extra-source-files:
 
 library
     hs-source-dirs:  lib
-    exposed-modules: Utils, Broker, Client, Packets, Chat.App
+    exposed-modules: Utils, Broker, Client, Packets, Chat.App, Socket
     other-modules:   Chat.Message, Chat.Terminal, Packets.Simple, Packets.Builder, Packets.Parser, Packets.Abstract, Utils.Bits, Utils.BitParsing
-    build-depends:   base >=4.16.4.0, network >= 0.1.0.1, bytestring, ansi-terminal, containers >= 0.6.5.1
+    build-depends:   base >=4.16.4.0, network >= 0.1.0.1, bytestring, ansi-terminal, containers >= 0.6.5.1, async
     default-language: Haskell2010
 
 executable mqtt-client
@@ -29,7 +29,7 @@ executable mqtt-client
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
-    build-depends:    base >=4.16.4.0, mqtt-haskell
+    build-depends:    base >=4.16.4.0, mqtt-haskell, async
     hs-source-dirs:   src-client
     default-language: Haskell2010
 
