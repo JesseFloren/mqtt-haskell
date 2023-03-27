@@ -5,8 +5,6 @@ import Packets.Builder ( packetToByteString )
 import Packets.Parser ( byteStringToPacket )
 import Network.Socket.ByteString ( recv, sendAll )
 import Data.ByteString (null)
-import Debug.Trace
-import Control.Exception (throw)
 
 --- *** Server Side *** ---
 createServer :: PortNumber -> IO Socket

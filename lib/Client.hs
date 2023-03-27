@@ -1,9 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 module Client where
 import Network.Socket
-import Network.Socket.ByteString
-import qualified Data.ByteString.Char8 as C
-import Data.ByteString.Char8 (unpack)
 import Socket.Base (createSocket, sendPacket, recvPacket)
 import Packets.Simple (writeConnectPacket, readConnackPacket, writeSubscribePacket, readSubackPacket, writePublishPacket, readPublishPacket)
 import Packets.Abstract (ConnectFlags(ConnectFlags), ConnackResponse (..), QoS (Zero), PublishFlags (PublishFlags, channel), Packet (cmd), CommandType (..))

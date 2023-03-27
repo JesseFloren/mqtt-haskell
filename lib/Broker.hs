@@ -75,7 +75,7 @@ handleConnect sock sessions = do
         Nothing -> do
             sendPacket sock $ writeConnackPacket True BadProtocalError
             return Nothing
-        Just (cid, ConnectFlags user pass will cleanSession, keepAlive) -> do
+        Just (cid, ConnectFlags _ _ will cleanSession, keepAlive) -> do
             -- Implement authentication
             session <- filter (\s -> clientId s == cid) <$> readMVar sessions
             case (session, cleanSession) of
