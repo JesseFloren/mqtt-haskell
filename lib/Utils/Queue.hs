@@ -1,6 +1,6 @@
 module Utils.Queue where
 
-data Queue a = Queue a (Queue a) | End
+data Queue a = Queue a (Queue a) | End deriving (Show)
 
 empty :: Queue a
 empty = End

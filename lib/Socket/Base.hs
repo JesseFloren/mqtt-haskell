@@ -4,6 +4,9 @@ import Packets.Abstract ( Packet )
 import Packets.Builder ( packetToByteString )
 import Packets.Parser ( byteStringToPacket )
 import Network.Socket.ByteString ( recv, sendAll )
+import Data.ByteString (null)
+import Debug.Trace
+import Control.Exception (throw)
 
 --- *** Server Side *** ---
 createServer :: PortNumber -> IO Socket
@@ -31,12 +34,8 @@ formatAddress (host, port) = do
 sendPacket :: Socket -> Packet -> IO ()
 sendPacket sock = sendAll sock . packetToByteString
 
-recvPacket :: Socket -> IO Packet
+recvPacket :: Socket -> IO (Maybe Packet)
 recvPacket sock = do
-    response <- byteStringToPacket <$> recv sock 1024 
-    case response of
-        (Just x) -> return x
-        Nothing -> do
-            putStrLn "Failed to decode packet"
-            recvPacket sock
+    resp <- recv sock 1024
+    return $ if Data.ByteString.null resp then Nothing else byteStringToPacket resp
 

@@ -4,23 +4,22 @@ module Broker where
 import Network.Socket
 import Control.Concurrent
 import Socket.Base (createServer, recvPacket, sendPacket)
-import Packets.Abstract ( QoS, Topic, Packet (flags, cmd), ConnectFlags (ConnectFlags, cleanSession), Retain, ConnackResponse (Accepted, BadProtocalError), CommandType (..), PacketId, PublishFlags (PublishFlags), ClientId )
-import Utils.Queue ( Queue, pop, push )
+import Packets.Abstract ( QoS, Topic, Packet (cmd), ConnectFlags (ConnectFlags), Retain, ConnackResponse (Accepted, BadProtocalError), CommandType (..), PacketId, PublishFlags (PublishFlags) )
+import Utils.Queue ( Queue (..), pop, push, single )
 import Packets.Simple (readConnectPacket, writeConnackPacket, readSubscribePacket, writeSubackPacket, writePublishPacket, readPublishPacket)
 import Control.Applicative
-import GHC.Read (list)
+import qualified Data.Map as M
 
 data MqttBroker = MqttBroker {socket :: Socket, acThread :: ThreadId,  mqThread :: ThreadId }
 
 data Session = Session {
     clientId :: String,
-    subscriptions :: [(Topic, QoS)],
+    subscriptions :: M.Map Topic QoS,
     keepAlive :: Int,
     will:: Maybe (Retain, QoS, Topic, String),
     conn :: Maybe Socket}
 
-data Message = Message {topic :: Topic, msg :: String, pid :: PacketId}
-
+data Message = Message {topic :: Topic, msg :: String, pid :: PacketId} deriving (Show)
 
 createBroker :: PortNumber -> IO MqttBroker
 createBroker port = do
@@ -31,19 +30,19 @@ createBroker port = do
     mThread <- forkIO $ messageQueue messages sessions
     return $ MqttBroker sock aThread mThread
 
-
 messageQueue :: MVar (Queue Message) -> MVar [Session] -> IO ()
 messageQueue messages sessions = do
     (message, queue) <- pop <$> takeMVar messages
     case message of
-        Nothing -> do
-            emptyQ <- newEmptyMVar
-            messageQueue emptyQ sessions
+        Nothing -> messageQueue messages sessions
         Just m@(Message topic _ _) -> do
             clients <- readMVar sessions
-            sendMessage m [(sub, conn) | (Session _ subs _ _ conn) <- clients, sub <- filter (\(t, _) -> t == topic) subs]
-            putMVar messages queue
-            messageQueue messages sessions
+            sendMessage m [((topic, subs M.! topic), conn) | (Session _ subs _ _ conn) <- clients, M.member topic subs]
+            case queue of
+                End -> messageQueue messages sessions
+                _ -> do
+                    modifyMVar_ messages (\_ -> return queue)
+                    messageQueue messages sessions
 
 sendMessage :: Message -> [((Topic, QoS), Maybe Socket)] -> IO ()
 sendMessage _ [] = return ()
@@ -64,13 +63,14 @@ connectClient sock queue sessions = do
     subResp <- handleSubscribe sock
     case (conResp, subResp) of
         (Just (Session cid subs ka will conn), Just subscriptions) -> do
-            modifyMVar_ sessions $ return . (Session cid (subs ++ subscriptions) ka will conn:)
+            modifyMVar_ sessions $ return . (Session cid (subs `M.union` M.fromList subscriptions) ka will conn:)
+            putStrLn $ "Connected with client: " ++ cid
             listenToClient sock queue
         _ -> return ()
 
 handleConnect :: Socket -> MVar [Session] -> IO (Maybe Session)
 handleConnect sock sessions = do
-    connectPacket <- readConnectPacket <$> recvPacket sock
+    connectPacket <- recvPacket sock >>= (\case {Just x -> return $ readConnectPacket x; Nothing -> return Nothing})
     case connectPacket of 
         Nothing -> do
             sendPacket sock $ writeConnackPacket True BadProtocalError
@@ -84,12 +84,12 @@ handleConnect sock sessions = do
                     return $ Just $ Session cid subs keepAlive (w <|> will) (Just sock)
                 _ -> do
                     sendPacket sock $ writeConnackPacket False Accepted
-                    return $ Just $ Session cid [] keepAlive will (Just sock)
+                    return $ Just $ Session cid M.empty keepAlive will (Just sock)
 
 
 handleSubscribe :: Socket -> IO (Maybe [(Topic, QoS)])
 handleSubscribe sock = do
-    subscriptions <- readSubscribePacket <$> recvPacket sock
+    subscriptions <- recvPacket sock >>= (\case {Just x -> return $ readSubscribePacket x; Nothing -> return Nothing})
     case subscriptions of
         Nothing -> do
             return Nothing
@@ -99,14 +99,20 @@ handleSubscribe sock = do
 
 listenToClient :: Socket -> MVar (Queue Message) -> IO ()
 listenToClient sock queue = do
-    packet <- recvPacket sock
-    case cmd packet of
-        PUBLISH -> handlePublish sock packet queue
-        _ -> return ()
-    listenToClient sock queue
+    resp <- recvPacket sock
+    case resp of
+        Nothing -> return ()
+        Just packet -> do
+            case cmd packet of
+                PUBLISH -> handlePublish packet queue
+                _ -> return ()
+            listenToClient sock queue
 
-handlePublish :: Socket -> Packet -> MVar (Queue Message) -> IO ()
-handlePublish _ p queue = case readPublishPacket p of
+handlePublish :: Packet -> MVar (Queue Message) -> IO ()
+handlePublish p queue = case readPublishPacket p of
     Nothing -> return ()
     Just (pid, PublishFlags _ _ (topic, _), msg) -> do
-        modifyMVar_ queue (return . push (Message topic msg pid))
+        putStrLn $ "Received " ++ topic ++ ": " ++ msg
+        isempty <- isEmptyMVar queue
+        if isempty then putMVar queue (single (Message topic msg pid))
+        else modifyMVar_ queue (return . push (Message topic msg pid))   

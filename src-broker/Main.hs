@@ -1,5 +1,8 @@
 module Main where
-import Broker (runServer)
+import Broker (createBroker)
 
 main :: IO ()
-main = runServer
+main = do
+    createBroker 8000
+    _ <- getLine
+    putStrLn "Quit"

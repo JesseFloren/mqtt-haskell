@@ -136,10 +136,10 @@ readSubscribePacket p@(Packet _ _ _ payload) = maybeTup2 (pid, topics payload) w
     topics (Str t:QoS q:xs) = ((t, q):) <$> topics xs
     topics _ = Nothing
 
-readSubackPacket :: Packet -> Maybe (PacketId, Maybe QoS)
-readSubackPacket p@(Packet _ _ _ payload) =  maybeTup2 (pid, (getQoS <$>) <$> qos) where
+readSubackPacket :: Packet -> Maybe (PacketId, [Maybe QoS])
+readSubackPacket p@(Packet _ _ _ payload) =  maybeTup2 (pid, qos) where
     pid = readPacketId p
-    qos = findContent (\case {(Int8 0x80) -> Just Nothing; (Int8 v) -> Just (Just v); _ -> Nothing}) payload
+    qos = Just $ map (\case {(Int8 0x80) -> Nothing; (Int8 v) -> Just $ getQoS v; _ -> Nothing}) payload
 
 readUnsubscribePacket :: Packet -> Maybe (PacketId, [(Topic, QoS)])
 readUnsubscribePacket = readSubscribePacket
