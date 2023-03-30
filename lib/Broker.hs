@@ -2,7 +2,7 @@
 
 module Broker where
 
-import Network.Socket
+import Network.Socket ( Socket, PortNumber, accept )
 import Control.Concurrent
 import Socket.Base (createServer, recvPacket, sendPacket)
 import Utils.Queue ( Queue (..), pop, push, single )

@@ -6,14 +6,14 @@ import Packets.Abstract
 import Packets.CommandType
 import qualified Packets.CommandType as CT
 import Data.ByteString (ByteString, toStrict)
-import Utils (bitsToInt, bitsToBitList)
+import Utils (bitsToInt, intToBits)
 
 --- *** SizedBuilder: Keeps track of amount of bytes are being build *** ---
 type SizedBuilder = (Int, Builder)
 
 --- *** Builder *** ---
 cmdBuilder :: CommandType -> Flags -> Builder
-cmdBuilder ct f = int8 . fromIntegral . bitsToInt $ bitsToBitList 4 (CT.toWord8 ct) ++ f
+cmdBuilder ct f = int8 . fromIntegral . bitsToInt $ intToBits 4 (CT.commandToInt ct) ++ f
 
 contentBuilder :: Content -> SizedBuilder
 contentBuilder (Str str)    = (length str + 2, int16BE (fromIntegral $ length str) <> stringUtf8 str)

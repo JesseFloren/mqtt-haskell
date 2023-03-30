@@ -1,17 +1,8 @@
-module Packets.CommandType(CommandType(..), toWord8, fromWord8) where
+module Packets.CommandType(CommandType(..), commandToInt, intToCommand) where
 
 import qualified Data.Map as M
-import Utils.Map
-import Data.Word
+import Utils.Map ( toB, fromB )
 
-{--
-TODO finish this partial documentation
-Command types 
-
-PUBLISH
-  A PUBLISH packet is sent from a Client to a Server or from a Server to a Client to transport an Application Message.
-
---}
 data CommandType = CONNECT
                  | CONNACK
                  | PUBLISH
@@ -28,7 +19,7 @@ data CommandType = CONNECT
                  | DISCONNECT
                  deriving (Ord, Eq, Show)
 
-commandMap :: M.Map CommandType Word8
+commandMap :: M.Map CommandType Int
 commandMap = M.fromList [
     (CONNECT, 1)
   , (CONNACK, 2)
@@ -46,9 +37,9 @@ commandMap = M.fromList [
   , (DISCONNECT, 14)
   ]
 
-toWord8 :: CommandType -> Word8
-toWord8 = toB commandMap
+commandToInt :: CommandType -> Int
+commandToInt = toB commandMap
 
-fromWord8 :: Word8 -> CommandType
-fromWord8 = fromB commandMap
+intToCommand :: Int -> CommandType
+intToCommand = fromB commandMap
 
