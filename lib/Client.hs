@@ -28,7 +28,6 @@ type Message = String
 -- | Sends a message to the Broker
 send :: ConnAction (Message ->  IO ())
 send = do
-  conn <- getConn 
   pkt <- mkMessagePacket 
   pkt `chainM` sendPacket
 
@@ -67,12 +66,10 @@ subscribe = do
 sendPacket :: ConnAction (Packet -> IO ())
 sendPacket = do
   sock <- getSock
-  return (\pkt -> sendAll sock $ PB.packetToByteString pkt)
+  return (sendAll sock . PB.packetToByteString)
 
 receivePacket :: ConnAction (IO Packet)
-receivePacket = do
-  sock <- getSock
-  return (receiveIO sock)
+receivePacket = receiveIO <$> getSock
   where
     receiveIO :: S.Socket -> IO Packet
     receiveIO sock = do

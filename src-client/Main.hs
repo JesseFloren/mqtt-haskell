@@ -9,8 +9,8 @@ import Control.Concurrent (threadDelay)
 
 main :: IO ()
 main = do
-    App.run
-    -- runClient
+    -- App.run
+    runClient
 
 
 runClient :: IO ()
@@ -40,7 +40,9 @@ runClient = do
         let loop' :: IO ()
             loop' = do
               response <- receive `A.race` (getLine >>= \s -> send s) `A.race` threadDelay 100 
-              putStrLn $ "Received: " ++ show response
+              case response of
+                (Left msg) -> (putStrLn $ "Received: " ++ show msg) 
+                _ -> return ()
               loop'
         return loop'
       

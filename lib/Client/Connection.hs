@@ -20,17 +20,17 @@ apply (CA f) = f
 
 instance Functor ConnAction where
   fmap :: (a -> b) -> ConnAction a -> ConnAction b
-  fmap f (CA a) = CA (\conn -> f (a conn))
+  fmap f (CA a) = CA (f . a)
 
 instance Applicative ConnAction where
   pure :: a -> ConnAction a 
   pure = CA . const
 
   (<*>) :: ConnAction (a -> b) -> ConnAction a -> ConnAction b
-  (<*>) (CA f) (CA a) = CA (\conn -> (f conn) (a conn))
+  (<*>) (CA f) (CA a) = CA (\conn -> f conn (a conn))
 
 instance Monad ConnAction where
-  (>>=) :: (ConnAction a) -> (a -> ConnAction b) -> (ConnAction b)
+  (>>=) :: ConnAction a -> (a -> ConnAction b) -> ConnAction b
   (>>=) (CA a) f = CA (\conn -> f (a conn) `apply` conn)
 
 getSock :: ConnAction S.Socket

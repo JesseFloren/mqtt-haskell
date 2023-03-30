@@ -6,7 +6,7 @@ import System.IO (hSetBuffering, stdout, BufferMode(LineBuffering))
 import System.Console.ANSI (setCursorPosition)
 
 import qualified Control.Concurrent.Async as A
-import qualified Client as Client
+import qualified Client
 import Client.Connection 
 import qualified Socket as Sock
 
@@ -35,13 +35,13 @@ run = do
   printStateInfo state
   runLoop state
   
-  Client.close `apply` (conn state)
+  Client.close `apply` conn state
   where 
     runLoop :: AppState -> IO ()
     runLoop state = do
       let promptMessage = Message <$> getLine <*> return (username state)
           -- wait for either the user or the server to send a message
-          awaitChatEvent = promptMessage `A.race` (receiveMessage `apply` (conn state))
+          awaitChatEvent = promptMessage `A.race` (receiveMessage `apply` conn state)
       
       newState <- handleChatEvent state =<< awaitChatEvent
       let newChat = chat newState
@@ -60,7 +60,7 @@ showChat = unlines . map show . reverse
 receiveMessage :: ConnAction (IO Message)
 receiveMessage = do
   receive <- Client.receive
-  return ((\resp -> Message resp "<unknown user>") <$> receive)
+  return ((`Message` "<unknown user>") <$> receive)
 
 handleChatEvent :: AppState -> ChatEvent -> IO AppState
 handleChatEvent state (Left userMsg) = do
@@ -73,7 +73,7 @@ handleChatEvent state (Right serverMsg) = return (putMessage state serverMsg)
 sendMessage :: ConnAction (Message -> IO ())
 sendMessage = do
   send <- Client.send
-  return (\msg -> send (show msg))
+  return (send . show)
 
 login :: IO AppState
 login = AppState <$> promptUsername <*> getMessages <*> ioSocket
