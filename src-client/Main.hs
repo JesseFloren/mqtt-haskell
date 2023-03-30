@@ -1,4 +1,5 @@
 module Main where
+
 import Client
 import Socket
 
@@ -19,4 +20,3 @@ subscriptions = subGroup [topic1Sub]
 
 topic1Sub :: Subscription
 topic1Sub = sub "topic1" (pure putStrLn)
-    
