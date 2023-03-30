@@ -10,7 +10,6 @@ lookupKey m val = M.foldrWithKey go [] m where
     then key:found
     else found
 
--- TODO replace this with a BiMap implementation
 toB :: (Ord k, Show k) => M.Map k v -> k -> v
 toB mp k | Just v <- k `M.lookup` mp = v
 toB _ k = error ("unknown value" ++ show k)
