@@ -1,83 +1,118 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Broker where
 
 import Network.Socket
-import Network.Socket.ByteString ( recv, sendAll )
-import qualified Data.ByteString.Char8 as C
 import Control.Concurrent
-import Data.ByteString.Char8 (unpack)
+import Socket.Base (createServer, recvPacket, sendPacket)
+import Utils.Queue ( Queue (..), pop, push, single )
+import Control.Applicative ( Alternative((<|>)) )
+import Packets
+import qualified Data.Map as M
 
--- | Initialization function. Sets up the environment and shared memory (MVar)
-runServer :: IO ()
-runServer = do
-    sock <- socket AF_INET Stream defaultProtocol
-    bind sock (SockAddrInet 8000 (tupleToHostAddress (0,0,0,0)))
-    putStrLn "Listening"
-    listen sock 5
-    listMVars <- newMVar []
-    acceptLoop sock listMVars
+data MqttBroker = MqttBroker {socket :: Socket, acThread :: ThreadId,  mqThread :: ThreadId }
 
-{-|
-    This is the heart of the server. Accepting new connections, deciding if they should be publishers or
-    subscribers based on the received message. Every client is passed onto its own thread (forkIO).
-    Subscribers only have their connection (conn) and a shared memory space.
-    Publishers have their connection (conn) and a list with all the shared memory spaces of the subscribers
--}
-acceptLoop :: Socket -> MVar [MVar String] -> IO b
-acceptLoop sock listMVars = do
-    (conn, clientAddr) <- accept sock
-    putStrLn $ "Connection from " ++ show clientAddr
-    msg <- recv conn 1024
-    putStrLn $ C.unpack msg
-    if not (C.null msg) then sendAll conn msg else return ()
-    _ <- createHandler conn 
-    acceptLoop sock listMVars
+data Session = Session {
+    clientId :: String,
+    subscriptions :: M.Map Topic QoS,
+    keepAlive :: Int,
+    will:: Maybe (Retain, QoS, Topic, String),
+    conn :: Maybe Socket}
 
-    where
-        createHandler :: Socket -> IO (ThreadId, ThreadId)
-        createHandler conn = do
-            pubId <- createPub conn
-            putStrLn "Created pub"
-            
-            subId <- createSub conn
-            putStrLn "Created sub"
-            return (pubId, subId)
+data Message = Message {topic :: Topic, msg :: String, pid :: PacketId} deriving (Show)
 
-        createPub :: Socket -> IO ThreadId
-        createPub conn = forkIO $ pubHandler conn listMVars 
+createBroker :: PortNumber -> IO MqttBroker
+createBroker port = do
+    sock <- createServer port
+    sessions <- newMVar []
+    messages <- newEmptyMVar
+    aThread <- forkIO $ acceptClientLoop sock messages sessions
+    mThread <- forkIO $ messageQueue messages sessions
+    return $ MqttBroker sock aThread mThread
 
-        createSub :: Socket -> IO ThreadId
-        createSub conn = do
-          subMVar <- newEmptyMVar
-          list <- takeMVar listMVars
-          -- When a new subscriber is added, their shared memory space is added to the list of the publisher
-          putMVar listMVars $ list ++ [subMVar]
-          forkIO $ subHandler conn subMVar
+messageQueue :: MVar (Queue Message) -> MVar [Session] -> IO ()
+messageQueue messages sessions = do
+    (message, queue) <- pop <$> takeMVar messages
+    case message of
+        Nothing -> messageQueue messages sessions
+        Just m@(Message topic _ _) -> do
+            clients <- readMVar sessions
+            sendMessage m [((topic, subs M.! topic), conn) | (Session _ subs _ _ conn) <- clients, M.member topic subs]
+            case queue of
+                End -> messageQueue messages sessions
+                _ -> do
+                    modifyMVar_ messages (\_ -> return queue)
+                    messageQueue messages sessions
+
+sendMessage :: Message -> [((Topic, QoS), Maybe Socket)] -> IO ()
+sendMessage _ [] = return ()
+sendMessage m ((_, Nothing):xs) = sendMessage m xs
+sendMessage m@(Message _ msg pid) ((sub, Just conn):xs) = do
+    sendPacket conn $ writePublishPacket pid (PublishFlags False False sub) msg
+    sendMessage m xs
+
+acceptClientLoop :: Socket ->  MVar (Queue Message) -> MVar [Session] -> IO ()
+acceptClientLoop broker queue sessions = do
+    (client, _) <- accept broker
+    _ <- forkIO $ connectClient client queue sessions
+    acceptClientLoop broker queue sessions
+
+connectClient :: Socket -> MVar (Queue Message) -> MVar [Session] -> IO ()
+connectClient sock queue sessions = do
+    conResp <- handleConnect sock sessions
+    subResp <- handleSubscribe sock
+    case (conResp, subResp) of
+        (Just (Session cid subs ka will conn), Just subscriptions) -> do
+            modifyMVar_ sessions $ return . (Session cid (subs `M.union` M.fromList subscriptions) ka will conn:)
+            putStrLn $ "Connected with client: " ++ cid
+            listenToClient sock queue
+        _ -> return ()
+
+handleConnect :: Socket -> MVar [Session] -> IO (Maybe Session)
+handleConnect sock sessions = do
+    connectPacket <- recvPacket sock >>= (\case {Just x -> return $ readConnectPacket x; Nothing -> return Nothing})
+    case connectPacket of 
+        Nothing -> do
+            sendPacket sock $ writeConnackPacket True BadProtocalError
+            return Nothing
+        Just (cid, ConnectFlags _ _ will cleanSession, keepAlive) -> do
+            -- Implement authentication
+            session <- filter (\s -> clientId s == cid) <$> readMVar sessions
+            case (session, cleanSession) of
+                ([Session _ subs _ w _], False) -> do
+                    sendPacket sock $ writeConnackPacket True Accepted
+                    return $ Just $ Session cid subs keepAlive (w <|> will) (Just sock)
+                _ -> do
+                    sendPacket sock $ writeConnackPacket False Accepted
+                    return $ Just $ Session cid M.empty keepAlive will (Just sock)
 
 
+handleSubscribe :: Socket -> IO (Maybe [(Topic, QoS)])
+handleSubscribe sock = do
+    subscriptions <- recvPacket sock >>= (\case {Just x -> return $ readSubscribePacket x; Nothing -> return Nothing})
+    case subscriptions of
+        Nothing -> do
+            return Nothing
+        Just (pid, subs) -> do
+            sendPacket sock $ writeSubackPacket pid (map (Just . snd) subs)
+            return $ Just subs
 
-{-|
-    pubHandler receives messages from publishers after which it writes the message in all the shared memory
-    spaces of the subscribers. Keep in mind that the list of shared memory spaces itself is also a shared memory
-    space (listOfMvars). This is updated by acceptLoop every time a new subscriber joins
-    pubHandler could theoretically block, but only when other publishers are writing. 
-    Keep in mind this function is called within a thread, so conn is different each call.
--}
-pubHandler :: Socket -> MVar [MVar String]-> IO b
-pubHandler conn listOfMvars = do
-    msg <- recv conn 1024
-    putStrLn $ "Received: " ++ show msg
-    myList <- takeMVar listOfMvars
-    mapM_ (`putMVar` unpack msg) myList
-    putMVar listOfMvars myList
-    pubHandler conn listOfMvars
+listenToClient :: Socket -> MVar (Queue Message) -> IO ()
+listenToClient sock queue = do
+    resp <- recvPacket sock
+    case resp of
+        Nothing -> return ()
+        Just packet -> do
+            case cmd packet of
+                PUBLISH -> handlePublish packet queue
+                _ -> return ()
+            listenToClient sock queue
 
-{-|
-    subHandler is a blocking function. When the share memory space is empty it does nothing but wait untill
-    something is put inside it. When something is put inside the shared memory space it is send to the client
-    via the conn variable. Keep in mind this function is called within a thread, so conn is different each call.
--}
-subHandler :: Socket -> MVar String -> IO b
-subHandler conn mVar = do
-    result <- takeMVar mVar
-    sendAll conn $ C.pack result
-    subHandler conn mVar
+handlePublish :: Packet -> MVar (Queue Message) -> IO ()
+handlePublish p queue = case readPublishPacket p of
+    Nothing -> return ()
+    Just (pid, PublishFlags _ _ (topic, _), msg) -> do
+        putStrLn $ "Received " ++ topic ++ ": " ++ msg
+        isempty <- isEmptyMVar queue
+        if isempty then putMVar queue (single (Message topic msg pid))
+        else modifyMVar_ queue (return . push (Message topic msg pid))   

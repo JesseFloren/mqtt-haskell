@@ -1,28 +1,11 @@
 {-# LANGUAGE LambdaCase #-}
 module Packets.Abstract where
 
-import Utils (Bit)
-import qualified Data.Map as M
-import Packets.CommandType
+import Utils.Bits ( Bit )
+import Packets.CommandType ( CommandType )
 
 --- *** Packet with Commands *** ---
-{--
-TODO add documentation about Packet structure
-
-CommandType - specifies packet role in MQTT protocol
-Flags - 4-bit sequence specifying, for example: whether it's a duplicate, the QoS level or retainment policy
-Header - ???
-Payload - contents of the Packet
-
---}
-data Packet = Packet CommandType Flags Header Payload deriving (Show, Eq)
-
--- Common to ALL packet types
-type PacketHeader = (CommandType, Flags)
-packetHeader :: Packet -> PacketHeader
-packetHeader (Packet cmd fs _ _) = (cmd, fs)
-
-
+data Packet  = Packet {cmd :: CommandType, flags :: Flags, header :: Header, payload :: Payload} deriving (Show, Eq)
 
 --- *** Flags *** ---
 type Flags = [Bit]

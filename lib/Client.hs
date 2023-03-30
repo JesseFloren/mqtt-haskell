@@ -1,79 +1,83 @@
-module Client (open, send, receive, subscribe, close, Connection(..)) where
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TupleSections #-}
 
-import Network.Socket.ByteString (recv, sendAll)
-import qualified Network.Socket as S
-import qualified Socket as Sock
-import Packets.Abstract
-import Packets.Parser
-import Packets.IO (mkPacketIdCounter, PacketIdCounter)
-import qualified Packets.Builder as PB
-import qualified Packets.Simple as Simple
-import Client.Connection 
+module Client where
 
+import Network.Socket ( close, Socket, PortNumber )
+import Socket.Base (createSocket, sendPacket, recvPacket)
+import Packets 
+import Control.Concurrent (forkIO)
+import Socket.Client (Connection (Conn, sock), ConnAction, getNextPacketId, chainM, getSock, apply)
+import qualified Data.Map as M
 
--- | Opens a connection to a Broker at a specified address 
-open :: Sock.SocketAddress -> IO Connection
-open addr = Conn <$> connect addr <*> mkPacketIdCounter
+data MqttConfig = MqttConfig {cid::String, host::String, port::PortNumber, auth::Maybe (String, String)}
+type Subscription = M.Map Topic (ConnAction (String -> IO ()))
 
--- | Opens a socket at a specified address 
-connect :: Sock.SocketAddress -> IO S.Socket
-connect addr = do
-  sock <- S.socket S.AF_INET S.Stream S.defaultProtocol
-  serverAddr <- Sock.createSockAddr addr
+runClient :: MqttConfig -> Subscription -> IO Connection
+runClient conf subs = do
+    sock <- createSocket (host conf, port conf)
+    handleConnect sock (cid conf)
+    handleSubscribe sock (M.keys subs)
+    putStrLn "Connected with broker successfully"
+    conn <- Conn sock <$> mkPacketIdCounter
+    _ <- forkIO $ listenToServer conn subs
+    return conn
 
-  sock <$ S.connect sock serverAddr
+handleConnect :: Socket -> ClientId -> IO ()
+handleConnect sock cid = do
+    sendPacket sock $ writeConnectPacket cid (ConnectFlags Nothing Nothing Nothing False) 60000
+    connack <- recvPacket sock >>= (\case {Just x -> return $ readConnackPacket x; Nothing -> return Nothing})
+    case connack of
+        Just (_, Accepted) -> return ()
+        _ -> error "Failed to connect"
 
-type Message = String
+handleSubscribe :: Socket -> [Topic] -> IO ()
+handleSubscribe sock topics = do
+    sendPacket sock $ writeSubscribePacket 0 (map (,Zero) topics)
+    suback <- recvPacket sock >>= (\case {Just x -> return $ readSubackPacket x; Nothing -> return Nothing})
+    case suback of
+        Just (_, _) -> return ()
+        _ -> error "Failed to subscribe"
 
--- | Sends a message to the Broker
-send :: ConnAction (Message ->  IO ())
+--- *** Send to Broker *** ---
+send :: ConnAction ((Topic, String) -> IO ())
 send = do
-  pkt <- mkMessagePacket 
-  pkt `chainM` sendPacket
+  pkt <- mkMessagePacket
+  pkt `chainM` (sendPacket <$> getSock)
 
-mkMessagePacket :: ConnAction (Message -> IO Packet)
+mkMessagePacket :: ConnAction ((Topic, String) -> IO Packet)
 mkMessagePacket = do
     getPId <- getNextPacketId
-    return $ \msg -> do
+    return $ \(topic,msg) -> do
       pId <- getPId
-      return $ Simple.writePublishPacket pId (PublishFlags False False ("", Zero)) msg
+      return $ writePublishPacket pId (PublishFlags False False (topic, Zero)) msg
 
-
--- | Waits for a message to be received
-receive :: ConnAction (IO Message)
-receive = do
-  pkt <- receivePacket
-  return (extractMessage <$> pkt)
-  where
-    -- purposefully naive implementation as the protocol has yet to be described
-    extractMessage p | (Just (i, fs, str)) <- Simple.readPublishPacket p = str 
-
--- | Closes the connection to the Broker gracefully
+--- *** Close client *** ---
 close :: ConnAction (IO ())
-close = do
-  sock <- getSock
-  -- MQTT-specific actions
-  return (S.close sock)
+close = do Network.Socket.close <$> getSock
 
--- | Subscribes the client to a topic
-subscribe :: ConnAction (IO ())
-subscribe = do
-  -- MQTT-specific actions
-  returnIO ()
+--- *** Listen to Server *** ---
+listenToServer :: Connection -> Subscription -> IO ()
+listenToServer conn subs = do
+    response <- recvPacket (sock conn)
+    case response of
+        Nothing -> return ()
+        Just packet -> do
+            case cmd packet of
+                PUBLISH -> do
+                    handlePublish conn subs packet
+                    listenToServer conn subs
+                _ -> listenToServer conn subs
 
--- TODO specify whether sending was successful
--- | Send a packet to the broker
-sendPacket :: ConnAction (Packet -> IO ())
-sendPacket = do
-  sock <- getSock
-  return (sendAll sock . PB.packetToByteString)
+handlePublish :: Connection -> Subscription -> Packet -> IO ()
+handlePublish conn subs packet = do
+    case readPublishPacket packet of
+        Nothing -> return ()
+        Just (_, flags, message) -> (($ message) <$> subs M.! fst (channel flags)) `apply` conn
 
-receivePacket :: ConnAction (IO Packet)
-receivePacket = receiveIO <$> getSock
-  where
-    receiveIO :: S.Socket -> IO Packet
-    receiveIO sock = do
-      mPacket <- byteStringToPacket <$> recv sock 1024
-      case mPacket of
-        Nothing  -> receiveIO sock
-        (Just p) -> return p
+--- *** Build Subs *** ---
+sub :: Topic -> ConnAction (String -> IO ()) -> Subscription
+sub t f = M.fromList [(t,f)]
+
+subGroup :: [Subscription] -> Subscription
+subGroup = foldr M.union M.empty

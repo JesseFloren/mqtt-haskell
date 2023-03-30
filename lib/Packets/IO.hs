@@ -1,7 +1,7 @@
 module Packets.IO where
 
-import Packets.Abstract
-import Data.IORef
+import Packets.Abstract ( PacketId )
+import Data.IORef ( modifyIORef, newIORef, readIORef )
 
 type PacketIdCounter = (IO PacketId, IO PacketId)
 
@@ -14,5 +14,4 @@ mkPacketIdCounter = do
         modifyIORef r (+1)
         peek)
   return (peek, incr)
-
 

@@ -2,7 +2,7 @@ module Packets.CommandType(CommandType(..), toWord8, fromWord8) where
 
 import qualified Data.Map as M
 import Utils.Map
-import Data.Word 
+import Data.Word
 
 {--
 TODO finish this partial documentation
@@ -47,8 +47,8 @@ commandMap = M.fromList [
   ]
 
 toWord8 :: CommandType -> Word8
-toWord8 ct = toB commandMap ct
+toWord8 = toB commandMap
 
 fromWord8 :: Word8 -> CommandType
-fromWord8 i = fromB commandMap i
+fromWord8 = fromB commandMap
 

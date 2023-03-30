@@ -1,15 +1,15 @@
 module Packets.ConnackResponse (ConnackResponse(..), toInt, fromInt) where
 
 import qualified Data.Map as M
-import Utils.Map
+import Utils.Map ( toB, fromB )
 
-data ConnackResponse = 
-    Accepted 
-  | BadProtocalError 
-  | BadClientIdError 
-  | UnavailableError 
-  | BadAuthError 
-  | AuthError 
+data ConnackResponse =
+    Accepted
+  | BadProtocalError
+  | BadClientIdError
+  | UnavailableError
+  | BadAuthError
+  | AuthError
   deriving (Ord, Eq, Show)
 
 mapConnackResponse :: M.Map ConnackResponse Int
@@ -23,7 +23,7 @@ mapConnackResponse = M.fromList [
   ]
 
 toInt :: ConnackResponse -> Int
-toInt cr = toB mapConnackResponse cr
+toInt = toB mapConnackResponse
 
 fromInt :: Int -> ConnackResponse
-fromInt i = fromB mapConnackResponse i
+fromInt = fromB mapConnackResponse
