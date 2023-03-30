@@ -7,7 +7,6 @@ module Utils.BitParsing where
 import Control.Applicative (Alternative(..))
 import Data.Char (chr)
 import Utils.Bits
-import Data.Word (Word8)
 
 newtype BitParser a = BitParser {parse :: [Bit] -> (Maybe a, [Bit])}
 
