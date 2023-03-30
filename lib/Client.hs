@@ -1,58 +1,85 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TupleSections #-}
+
 module Client where
-import Network.Socket
+
+import Network.Socket ( close, Socket, PortNumber )
 import Socket.Base (createSocket, sendPacket, recvPacket)
 import Packets.Simple (writeConnectPacket, readConnackPacket, writeSubscribePacket, readSubackPacket, writePublishPacket, readPublishPacket)
-import Packets.Abstract (ConnectFlags(ConnectFlags), ConnackResponse (..), QoS (Zero), PublishFlags (PublishFlags, channel), Packet (cmd), CommandType (..))
+import Packets.Abstract (ConnectFlags(ConnectFlags), ConnackResponse (..), QoS (Zero), PublishFlags (PublishFlags, channel), Packet (cmd), CommandType (..), Topic, ClientId)
 import Control.Concurrent (forkIO)
+import Socket.Client (Connection (Conn, sock), ConnAction, getNextPacketId, chainM, getSock, apply)
+import Packets.IO ( mkPacketIdCounter )
+import qualified Data.Map as M
 
-runClient :: IO ()
-runClient = do
-    sock <- createSocket ("127.0.0.1", 8000)
-    handleConnect sock
-    handleSubscribe sock
+data MqttConfig = MqttConfig {cid::String, host::String, port::PortNumber, auth::Maybe (String, String)}
+type Subscription = M.Map Topic (ConnAction (String -> IO ()))
+
+runClient :: MqttConfig -> Subscription -> IO Connection
+runClient conf subs = do
+    sock <- createSocket (host conf, port conf)
+    handleConnect sock (cid conf)
+    handleSubscribe sock (M.keys subs)
     putStrLn "Connected with broker successfully"
-    _ <- forkIO $ talkToServer sock
-    listenToServer sock
-    close sock
- 
-handleConnect :: Socket -> IO ()
-handleConnect sock = do
-    sendPacket sock $ writeConnectPacket "Client1" (ConnectFlags Nothing Nothing Nothing False) 60000
+    conn <- Conn sock <$> mkPacketIdCounter
+    _ <- forkIO $ listenToServer conn subs
+    return conn
+
+handleConnect :: Socket -> ClientId -> IO ()
+handleConnect sock cid = do
+    sendPacket sock $ writeConnectPacket cid (ConnectFlags Nothing Nothing Nothing False) 60000
     connack <- recvPacket sock >>= (\case {Just x -> return $ readConnackPacket x; Nothing -> return Nothing})
     case connack of
         Just (_, Accepted) -> return ()
         _ -> error "Failed to connect"
 
-handleSubscribe :: Socket -> IO ()
-handleSubscribe sock = do
-    sendPacket sock $ writeSubscribePacket 0 [("topic1", Zero)]
+handleSubscribe :: Socket -> [Topic] -> IO ()
+handleSubscribe sock topics = do
+    sendPacket sock $ writeSubscribePacket 0 (map (,Zero) topics)
     suback <- recvPacket sock >>= (\case {Just x -> return $ readSubackPacket x; Nothing -> return Nothing})
     case suback of
         Just (_, _) -> return ()
         _ -> error "Failed to subscribe"
 
-talkToServer :: Socket -> IO ()
-talkToServer sock = do
-    s <- Prelude.getLine
-    sendPacket sock $ writePublishPacket 1 (PublishFlags False False ("topic1", Zero)) s
-    talkToServer sock
+--- *** Send to Broker *** ---
+send :: ConnAction ((Topic, String) -> IO ())
+send = do
+  pkt <- mkMessagePacket
+  pkt `chainM` (sendPacket <$> getSock)
 
-listenToServer :: Socket -> IO ()
-listenToServer sock = do
-    response <- recvPacket sock
+mkMessagePacket :: ConnAction ((Topic, String) -> IO Packet)
+mkMessagePacket = do
+    getPId <- getNextPacketId
+    return $ \(topic,msg) -> do
+      pId <- getPId
+      return $ writePublishPacket pId (PublishFlags False False (topic, Zero)) msg
+
+--- *** Close client *** ---
+close :: ConnAction (IO ())
+close = do Network.Socket.close <$> getSock
+
+--- *** Listen to Server *** ---
+listenToServer :: Connection -> Subscription -> IO ()
+listenToServer conn subs = do
+    response <- recvPacket (sock conn)
     case response of
         Nothing -> return ()
-        Just packet -> do 
+        Just packet -> do
             case cmd packet of
                 PUBLISH -> do
-                    handlePublish packet
-                    listenToServer sock
-                _ -> listenToServer sock
-            
-handlePublish :: Packet -> IO ()
-handlePublish packet = do
+                    handlePublish conn subs packet
+                    listenToServer conn subs
+                _ -> listenToServer conn subs
+
+handlePublish :: Connection -> Subscription -> Packet -> IO ()
+handlePublish conn subs packet = do
     case readPublishPacket packet of
         Nothing -> return ()
-        Just (_, flags, message) -> do
-            putStrLn $ "Received " ++ fst (channel flags) ++ ": " ++ message
+        Just (_, flags, message) -> (($ message) <$> subs M.! fst (channel flags)) `apply` conn
+
+--- *** Build Subs *** ---
+sub :: Topic -> ConnAction (String -> IO ()) -> Subscription
+sub t f = M.fromList [(t,f)]
+
+subGroup :: [Subscription] -> Subscription
+subGroup = foldr M.union M.empty
