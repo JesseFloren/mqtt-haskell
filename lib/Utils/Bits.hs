@@ -1,5 +1,7 @@
 module Utils.Bits where
 
+import Data.Bits hiding (bit)
+
 data Bit = O | I deriving (Eq)
 type Byte = [Bit]
 
@@ -22,3 +24,14 @@ bitsToInt (x:xs) = bitVal x (length xs + 1) + bitsToInt xs
 intToBits :: Int -> Int -> [Bit]
 intToBits 0 _ = []
 intToBits size i = let c = bitVal I size in bit (i >= c):intToBits (size - 1) (if i >= c then i - c else i)
+
+-- | Re-write of intToBits that works for Bits instances and negative numbers
+bitsToBitList :: Bits i => Int -> i -> [Bit]
+bitsToBitList s = integralToBits' s
+  where
+    integralToBits' 0 _ = []
+    integralToBits' size i =
+      let next = size - 1
+          is1 = i `testBit` next
+          recurse = bitsToBitList next i
+      in bit is1 : recurse

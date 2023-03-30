@@ -5,11 +5,9 @@ module Client where
 
 import Network.Socket ( close, Socket, PortNumber )
 import Socket.Base (createSocket, sendPacket, recvPacket)
-import Packets.Simple (writeConnectPacket, readConnackPacket, writeSubscribePacket, readSubackPacket, writePublishPacket, readPublishPacket)
-import Packets.Abstract (ConnectFlags(ConnectFlags), ConnackResponse (..), QoS (Zero), PublishFlags (PublishFlags, channel), Packet (cmd), CommandType (..), Topic, ClientId)
+import Packets 
 import Control.Concurrent (forkIO)
 import Socket.Client (Connection (Conn, sock), ConnAction, getNextPacketId, chainM, getSock, apply)
-import Packets.IO ( mkPacketIdCounter )
 import qualified Data.Map as M
 
 data MqttConfig = MqttConfig {cid::String, host::String, port::PortNumber, auth::Maybe (String, String)}

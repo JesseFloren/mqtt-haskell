@@ -7,6 +7,7 @@ module Utils.BitParsing where
 import Control.Applicative (Alternative(..))
 import Data.Char (chr)
 import Utils.Bits
+import Data.Word (Word8)
 
 newtype BitParser a = BitParser {parse :: [Bit] -> (Maybe a, [Bit])}
 
@@ -59,6 +60,13 @@ parseBits = foldr (\x -> (<*>) ((:) <$> parseBit x)) (pure [])
 parseInt :: Int -> BitParser Int
 parseInt size = BitParser $ \xs -> let (xs1, xs2) = splitAt size xs in 
     if length xs1 == size then (Just $ bitsToInt xs1, xs2) else (Nothing, xs)
+
+-- | Parses into a Word8, but only consumes 4 bits
+parseWord4 :: BitParser Word8
+parseWord4 = fromIntegral <$> parseInt 4
+
+parseWord8 :: BitParser Word8
+parseWord8 = fromIntegral <$> parseInt 8
 
 parseChar :: BitParser Char
 parseChar = chr <$> parseInt 8

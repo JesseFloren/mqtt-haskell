@@ -18,14 +18,19 @@ library
     hs-source-dirs: lib
     exposed-modules: Utils, Broker, Client, Packets, Socket
     other-modules: 
-        Packets.Simple, 
-        Packets.Builder, 
-        Packets.Parser, 
         Packets.Abstract,
+        Packets.Builder, 
+        Packets.CommandType,
+        Packets.ConnackResponse,
         Packets.IO,
-        Utils.Bits, 
+        Packets.Parser, 
+        Packets.Simple, 
+
         Utils.BitParsing,
+        Utils.Bits, 
+        Utils.Map,
         Utils.Queue,
+
         Socket.Base,
         Socket.Broker,
         Socket.Client
@@ -61,5 +66,5 @@ test-suite mqtt-tests
     type:           exitcode-stdio-1.0
     main-is:        Spec.hs
     hs-source-dirs: test
-    other-modules:  Spec.Sanity, Arbitrary.Packets, Spec.Packets
+    other-modules:  Spec.Sanity, Arbitrary.Packets, Spec.Packets, Spec.Utils.Bits
     build-depends:  base, mqtt-haskell, tasty, tasty-quickcheck, tasty-hunit

@@ -14,3 +14,4 @@ mkPacketIdCounter = do
         modifyIORef r (+1)
         peek)
   return (peek, incr)
+

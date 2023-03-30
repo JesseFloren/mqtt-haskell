@@ -3,16 +3,18 @@
 module Packets.Parser (byteStringToPacket) where
 
 --- *** Imports *** ---
-import Utils ( intToBits, BitParser (parse), parseInt, parseString, parseSize )
+import Utils ( intToBits, BitParser (parse), parseInt, parseString, parseSize, parseWord4)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as C
 import Control.Applicative (empty, Alternative (some, many))
 import Packets.Abstract
+import Packets.CommandType
+import qualified Packets.CommandType as CT
 
 
 --- *** Parser *** ---
 parseCmd :: BitParser CommandType
-parseCmd = head . lookupKey commandMap <$> parseInt 4
+parseCmd = CT.fromWord8 <$> parseWord4
 
 parseStr :: BitParser Content
 parseStr = Str <$> (parseInt 16 >>= parseString)
