@@ -10,26 +10,26 @@ import Control.Concurrent (forkIO)
 import Socket.Client (Connection (Conn, sock), ConnAction, getNextPacketId, chainM, getSock, apply)
 import qualified Data.Map as M
 
-data MqttConfig = MqttConfig {cid::String, host::String, port::PortNumber, auth::Maybe (String, String)}
+data MqttConfig = MqttConfig {cid::String, host::String, port::PortNumber, token::Maybe String}
 type Subscription = M.Map Topic (ConnAction (String -> IO ()))
 
 runClient :: MqttConfig -> Subscription -> IO Connection
 runClient conf subs = do
     sock <- createSocket (host conf, port conf)
-    handleConnect sock (cid conf)
+    handleConnect sock conf
     handleSubscribe sock (M.keys subs)
     putStrLn "Connected with broker successfully"
     conn <- Conn sock <$> mkPacketIdCounter
     _ <- forkIO $ listenToServer conn subs
     return conn
 
-handleConnect :: Socket -> ClientId -> IO ()
-handleConnect sock cid = do
-    sendPacket sock $ writeConnectPacket cid (ConnectFlags Nothing Nothing Nothing False) 60000
+handleConnect :: Socket -> MqttConfig -> IO ()
+handleConnect sock conf = do
+    sendPacket sock $ writeConnectPacket (cid conf) (ConnectFlags (token conf) (token conf) Nothing False) 60000
     connack <- recvPacket sock >>= (\case {Just x -> return $ readConnackPacket x; Nothing -> return Nothing})
     case connack of
         Just (_, Accepted) -> return ()
-        _ -> error "Failed to connect"
+        a -> error $ "Failed to connect " ++ show a
 
 handleSubscribe :: Socket -> [Topic] -> IO ()
 handleSubscribe sock topics = do

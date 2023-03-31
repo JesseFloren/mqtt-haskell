@@ -6,7 +6,7 @@ import Socket
 main :: IO ()
 main = do
     clientId <- getLine
-    conn <- runClient (MqttConfig clientId "127.0.0.1" 8000 Nothing) subscriptions
+    conn <- runClient (MqttConfig clientId "127.0.0.1" 8000 (Just "supersecretpassword")) subscriptions
     chat conn
 
 chat :: Connection -> IO ()
