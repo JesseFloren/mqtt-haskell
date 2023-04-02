@@ -4,7 +4,6 @@ import Client
 import Client.Subscription
 import Client.Connection
 import Client.MqttConfig
-import Socket
 
 main :: IO ()
 main = do

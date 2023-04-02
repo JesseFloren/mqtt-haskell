@@ -10,8 +10,9 @@ import Packets
 import Control.Concurrent (forkIO)
 import Client.Connection (Connection (Conn, sock), ConnAction, getNextPacketId, chainM, getSock, apply)
 import Client.MqttConfig (MqttConfig(..))
-import Client.Subscription (Subscription, sub, subGroup, topics, findHandler)
+import Client.Subscription (Subscription, topics, findHandler)
 import qualified Packets.Simple as Simple
+import qualified Data.Set as S
 
 
 open :: MqttConfig -> Subscription -> IO Connection
@@ -32,9 +33,9 @@ handleConnect sock conf = do
         Just (_, Accepted) -> return ()
         a -> error $ "Failed to connect " ++ show a
 
-handleSubscribe :: Socket -> [Topic] -> IO ()
+handleSubscribe :: Socket -> S.Set Topic -> IO ()
 handleSubscribe sock topics = do
-    sendPacket sock $ writeSubscribePacket 0 (map (,Zero) topics)
+    sendPacket sock $ writeSubscribePacket 0 $ S.toList (S.map (,Zero) topics)
     suback <- recvPacket sock >>= (\case {Just x -> return $ readSubackPacket x; Nothing -> return Nothing})
     case suback of
         Just (_, _) -> return ()
