@@ -3,21 +3,22 @@
 
 module Client where
 
-import Network.Socket ( close, Socket, PortNumber )
+import Network.Socket ( close, Socket )
+import Network.Socket.ByteString (recv, sendAll)
 import Socket.Base (createSocket, sendPacket, recvPacket)
 import Packets 
 import Control.Concurrent (forkIO)
-import Socket.Client (Connection (Conn, sock), ConnAction, getNextPacketId, chainM, getSock, apply)
-import qualified Data.Map as M
+import Client.Connection (Connection (Conn, sock), ConnAction, getNextPacketId, chainM, getSock, apply)
+import Client.MqttConfig (MqttConfig(..))
+import Client.Subscription (Subscription, sub, subGroup, topics, findHandler)
+import qualified Packets.Simple as Simple
 
-data MqttConfig = MqttConfig {cid::String, host::String, port::PortNumber, token::Maybe String}
-type Subscription = M.Map Topic (ConnAction (String -> IO ()))
 
-runClient :: MqttConfig -> Subscription -> IO Connection
-runClient conf subs = do
+open :: MqttConfig -> Subscription -> IO Connection
+open conf subs = do
     sock <- createSocket (host conf, port conf)
     handleConnect sock conf
-    handleSubscribe sock (M.keys subs)
+    handleSubscribe sock (topics subs)
     putStrLn "Connected with broker successfully"
     conn <- Conn sock <$> mkPacketIdCounter
     _ <- forkIO $ listenToServer conn subs
@@ -52,6 +53,26 @@ mkMessagePacket = do
       pId <- getPId
       return $ writePublishPacket pId (PublishFlags False False (topic, Zero)) msg
 
+
+-- | Waits for a message to be received
+receive :: ConnAction (IO String)
+receive = do
+  pkt <- receivePacket
+  return (extractMessage <$> pkt)
+  where
+    -- purposefully naive implementation as the protocol has yet to be described
+    extractMessage p | (Just (i, fs, str)) <- Simple.readPublishPacket p = str 
+
+receivePacket :: ConnAction (IO Packet)
+receivePacket = receiveIO <$> getSock
+  where
+    receiveIO :: Socket -> IO Packet
+    receiveIO sock = do
+      mPacket <- byteStringToPacket <$> recv sock 1024
+      case mPacket of
+        Nothing  -> receiveIO sock
+        (Just p) -> return p
+
 --- *** Close client *** ---
 close :: ConnAction (IO ())
 close = do Network.Socket.close <$> getSock
@@ -73,11 +94,4 @@ handlePublish :: Connection -> Subscription -> Packet -> IO ()
 handlePublish conn subs packet = do
     case readPublishPacket packet of
         Nothing -> return ()
-        Just (_, flags, message) -> (($ message) <$> subs M.! fst (channel flags)) `apply` conn
-
---- *** Build Subs *** ---
-sub :: Topic -> ConnAction (String -> IO ()) -> Subscription
-sub t f = M.fromList [(t,f)]
-
-subGroup :: [Subscription] -> Subscription
-subGroup = foldr M.union M.empty
+        Just (_, flags, message) -> (($ message) <$> subs `findHandler` fst (channel flags)) `apply` conn

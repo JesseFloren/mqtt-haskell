@@ -1,12 +1,14 @@
 module Main where
 
 import Client
+import Client.Connection
+import Client.MqttConfig
 import Socket
 
 main :: IO ()
 main = do
     clientId <- getLine
-    conn <- runClient (MqttConfig clientId "127.0.0.1" 8000 (Just "supersecretpassword")) subscriptions
+    conn <- open (MqttConfig clientId "127.0.0.1" 8000 (Just "supersecretpassword")) subscriptions
     chat conn
 
 chat :: Connection -> IO ()

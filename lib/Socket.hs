@@ -1,11 +1,9 @@
 module Socket
   (
     module Socket.Base,
-    module Socket.Broker,
-    module Socket.Client
+    module Socket.Broker
   )
   where
 
 import Socket.Base
 import Socket.Broker
-import Socket.Client

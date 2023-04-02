@@ -2,21 +2,16 @@
 module Client.Connection (Connection(..), ConnAction(..), apply, getSock, getNextPacketId, getConn, returnIO, chainM) where
 
 import qualified Network.Socket as S
-import Packets.IO (PacketIdCounter)
+import Packets (PacketIdCounter)
 import Packets.Abstract
+import Control.Monad ( (>=>) )
 
 data Connection = Conn {
     sock :: S.Socket
   , nextPacketId :: PacketIdCounter
 } 
 
-instance Show Connection where
-
-
 newtype ConnAction a = CA (Connection -> a)
-
-apply :: ConnAction a -> Connection -> a
-apply (CA f) = f
 
 instance Functor ConnAction where
   fmap :: (a -> b) -> ConnAction a -> ConnAction b
@@ -32,6 +27,9 @@ instance Applicative ConnAction where
 instance Monad ConnAction where
   (>>=) :: ConnAction a -> (a -> ConnAction b) -> ConnAction b
   (>>=) (CA a) f = CA (\conn -> f (a conn) `apply` conn)
+
+apply :: ConnAction a -> Connection -> a
+apply (CA f) = f
 
 getSock :: ConnAction S.Socket
 getSock = CA (\(Conn sock _) -> sock)
@@ -49,4 +47,4 @@ returnIO ioA = return $ do return ioA
 chainM :: Monad m => (a -> m b) -> ConnAction (b -> m c) -> ConnAction (a -> m c)
 chainM f1 f2 = do
   conn <- getConn
-  return $ \a -> f1 a >>= (f2 `apply` conn) 
+  return (f1 >=> (f2 `apply` conn))
