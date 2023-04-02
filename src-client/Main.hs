@@ -1,6 +1,7 @@
 module Main where
 
 import Client
+import Client.Subscription
 import Client.Connection
 import Client.MqttConfig
 import Socket

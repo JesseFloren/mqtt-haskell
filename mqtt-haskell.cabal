@@ -16,7 +16,7 @@ extra-source-files:
 
 library
     hs-source-dirs: lib
-    exposed-modules: Utils, Broker, Client, Client.Connection, Client.MqttConfig, Packets, Socket
+    exposed-modules: Utils, Broker, Client, Client.Connection, Client.MqttConfig, Client.Subscription, Packets, Socket
     other-modules: 
         Packets.Abstract,
         Packets.Builder, 

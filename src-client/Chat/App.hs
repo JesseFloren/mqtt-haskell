@@ -8,18 +8,19 @@ import System.Console.ANSI (setCursorPosition)
 import qualified Control.Concurrent.Async as A
 import qualified Client
 import Client.Connection
-import qualified Socket as Sock
+import Client.Subscription (empty)
+import Client.MqttConfig (noAuth)
 
 type Chat = [Message]
 
-data AppState = AppState {username :: String, chat :: Chat, socket :: Connection}
+data AppState = AppState {username :: String, chat :: Chat, conn :: Connection}
 
 putMessage :: AppState -> Message -> AppState
 putMessage (AppState user chat' sock) msg = 
   AppState user (msg : chat') sock
 
 printStateInfo :: AppState -> IO ()
-printStateInfo state = putStrLn $ "Logged in as " ++ username state ++ " (connected to " ++ show (socket state) ++ ")"
+printStateInfo state = putStrLn $ "Logged in as " ++ username state ++ " (connected to " ++ show (conn state) ++ ")"
 
 -- Left user message, Right server message
 -- TODO refine this into its own data type
@@ -35,13 +36,13 @@ run = do
   printStateInfo state
   runLoop state
   
-  Client.close (socket state)
+  Client.close `apply` conn state
   where 
     runLoop :: AppState -> IO ()
     runLoop state = do
       let promptMessage = Message <$> getLine <*> return (username state)
           -- wait for either the user or the server to send a message
-          awaitChatEvent = promptMessage `A.race` receiveMessage (socket state)
+          awaitChatEvent = promptMessage `A.race` (receiveMessage `apply` conn state)
       newState <- handleChatEvent state =<< awaitChatEvent
       let newChat = chat newState
 
@@ -56,28 +57,31 @@ refreshChat cs = do
 showChat :: Chat -> String
 showChat = unlines . map show . reverse 
 
-receiveMessage :: Connection -> IO Message 
-receiveMessage sock = do
-  response <- Client.receive sock
-  return (Message response "<unknown user>")
+receiveMessage :: ConnAction (IO Message)
+receiveMessage = do
+  receive <- Client.receive
+  return ((`Message` "<unknown user>") <$> receive)
 
 handleChatEvent :: AppState -> ChatEvent -> IO AppState
 handleChatEvent state (Left userMsg) = do
-  sendMessage (socket state) userMsg
+  (sendMessage `apply` conn state) userMsg
   return state
 handleChatEvent state (Right serverMsg) = return (putMessage state serverMsg)
 
 
 -- TODO move to own file
-sendMessage :: Connection -> Message -> IO ()
-sendMessage sock msg = Client.send (show msg) sock
+-- TODO implement topics
+sendMessage :: ConnAction (Message -> IO ())
+sendMessage = do
+  send <- Client.send
+  return (\msg -> send ("", show msg))
 
 login :: IO AppState
 login = AppState <$> promptUsername <*> getMessages <*> ioSocket
   where 
     ip = "127.0.0.1"
     port = 8000
-    ioSocket = Client.open (noAuth "" ip port)
+    ioSocket = Client.open (noAuth "" ip port) empty
 
 promptUsername :: IO String
 promptUsername = do

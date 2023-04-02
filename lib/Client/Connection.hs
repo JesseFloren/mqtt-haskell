@@ -11,6 +11,9 @@ data Connection = Conn {
   , nextPacketId :: PacketIdCounter
 } 
 
+instance Show Connection where
+  show = show . sock
+
 newtype ConnAction a = CA (Connection -> a)
 
 instance Functor ConnAction where

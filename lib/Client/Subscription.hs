@@ -10,7 +10,7 @@ type Subscription = M.Map Topic Handler
 
 --- *** Build Subs *** ---
 sub :: Topic -> Handler -> Subscription
-sub t f = M.singleton t f
+sub = M.singleton
 
 subGroup :: [Subscription] -> Subscription
 subGroup = foldr M.union M.empty
@@ -21,3 +21,5 @@ topics = M.keys
 findHandler :: Subscription -> Topic -> Handler
 findHandler = (M.!)
 
+empty :: Subscription
+empty = M.empty
