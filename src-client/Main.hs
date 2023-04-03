@@ -4,12 +4,14 @@ import Client
 import Client.Subscription
 import Client.Connection
 import Client.MqttConfig
+import qualified Chat.App as App
 
 main :: IO ()
 main = do
-    clientId <- getLine
-    conn <- open (MqttConfig clientId "127.0.0.1" 8000 (Just "supersecretpassword")) subscriptions
-    chat conn
+  App.run 
+  -- clientId <- getLine
+  -- conn <- open (MqttConfig clientId "127.0.0.1" 8000 (Just "supersecretpassword")) subscriptions
+  -- chat conn
 
 chat :: Connection -> IO ()
 chat conn = do

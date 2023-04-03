@@ -9,7 +9,7 @@ import qualified Control.Concurrent.Async as A
 import qualified Client
 import Client.Connection
 import Client.Subscription (empty)
-import Client.MqttConfig (noAuth)
+import Client.MqttConfig (MqttConfig(..))
 
 type Chat = [Message]
 
@@ -77,16 +77,17 @@ sendMessage = do
   return (\msg -> send ("", show msg))
 
 login :: IO AppState
-login = AppState <$> promptUsername <*> getMessages <*> ioSocket
-  where 
-    ip = "127.0.0.1"
-    port = 8000
-    ioSocket = Client.open (noAuth "" ip port) empty
+login = do
+  un <- promptUsername
+  let ip = "127.0.0.1"
+      port = 8000
+      ioSocket = Client.open (MqttConfig un ip port (Just "supersecretpassword")) empty
+  AppState <$> pure un <*> getMessages <*> ioSocket
+      
 
 promptUsername :: IO String
 promptUsername = do
   prompt "What is your username?"
-  -- login should also then connect 
 
 getMessages :: IO [Message]
 getMessages = pure []
