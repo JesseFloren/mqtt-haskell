@@ -1,9 +1,11 @@
+-- | Exports ByteString serialisation function
 module Packets.Builder (packetToByteString) where
 
 import Data.ByteString.Builder (Builder, int16BE, int8, stringUtf8, toLazyByteString)
 import Packets.Abstract
+import Packets.CommandType
+import qualified Packets.CommandType as CT
 import Data.ByteString (ByteString, toStrict)
-import qualified Data.Map as M
 import Utils (bitsToInt, intToBits)
 
 --- *** SizedBuilder: Keeps track of amount of bytes are being build *** ---
@@ -11,7 +13,7 @@ type SizedBuilder = (Int, Builder)
 
 --- *** Builder *** ---
 cmdBuilder :: CommandType -> Flags -> Builder
-cmdBuilder x f = int8 . fromIntegral . bitsToInt $ intToBits 4 (commandMap M.! x) ++ f
+cmdBuilder ct f = int8 . fromIntegral . bitsToInt $ intToBits 4 (CT.commandToInt ct) ++ f
 
 contentBuilder :: Content -> SizedBuilder
 contentBuilder (Str str)    = (length str + 2, int16BE (fromIntegral $ length str) <> stringUtf8 str)

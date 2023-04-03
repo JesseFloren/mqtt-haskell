@@ -4,4 +4,7 @@ import qualified Spec.Packets as Packets
 
 
 main :: IO ()
-main = defaultMain $ testGroup "mqtt-hs" [Sanity.test, Packets.test]
+main = defaultMain $ testGroup "mqtt-hs" [
+    Sanity.test
+  , Packets.test
+  ]

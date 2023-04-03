@@ -3,16 +3,18 @@
 module Packets.Parser (byteStringToPacket) where
 
 --- *** Imports *** ---
-import Utils ( intToBits, BitParser (parse), parseInt, parseString, parseSize )
+import Utils ( intToBits, BitParser (parse), parseInt, parseString, parseSize)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as C
-import Control.Applicative (empty, Alternative (some))
+import Control.Applicative (empty, Alternative (some, many))
 import Packets.Abstract
+import Packets.CommandType
+import qualified Packets.CommandType as CT
 
 
 --- *** Parser *** ---
 parseCmd :: BitParser CommandType
-parseCmd = head . lookupKey commandMap <$> parseInt 4
+parseCmd = CT.intToCommand <$> parseInt 4
 
 parseStr :: BitParser Content
 parseStr = Str <$> (parseInt 16 >>= parseString)
@@ -45,7 +47,7 @@ parsePayload :: CommandType -> BitParser Payload
 parsePayload CONNECT     = some parseStr
 parsePayload PUBLISH     = (: []) <$> parseStr
 parsePayload CONNACK     = pure []
-parsePayload SUBACK      = (: []) <$> parseInt8
+parsePayload SUBACK      = many parseInt8
 parsePayload SUBSCRIBE   = concat <$> some ((\t q -> [t, q]) <$> parseStr <*> parseQoS)
 parsePayload UNSUBSCRIBE = concat <$> some ((\t q -> [t, q]) <$> parseStr <*> parseQoS)
 parsePayload _           = pure []

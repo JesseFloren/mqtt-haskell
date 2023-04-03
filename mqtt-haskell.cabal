@@ -15,10 +15,26 @@ extra-source-files:
     README.md
 
 library
-    hs-source-dirs:  lib
-    exposed-modules: Utils, Broker, Client, Packets, Chat.App, Socket
-    other-modules:   Chat.Message, Chat.Terminal, Packets.Simple, Packets.Builder, Packets.Parser, Packets.Abstract, Utils.Bits, Utils.BitParsing
-    build-depends:   base >=4.16.4.0, network >= 0.1.0.1, bytestring, ansi-terminal, containers >= 0.6.5.1, async
+    hs-source-dirs: lib
+    exposed-modules: Utils, Broker, Client, Packets, Socket
+    other-modules: 
+        Packets.Abstract,
+        Packets.Builder, 
+        Packets.CommandType,
+        Packets.ConnackResponse,
+        Packets.IO,
+        Packets.Parser, 
+        Packets.Simple, 
+
+        Utils.BitParsing,
+        Utils.Bits, 
+        Utils.Map,
+        Utils.Queue,
+
+        Socket.Base,
+        Socket.Broker,
+        Socket.Client
+    build-depends: base ^>=4.16.4.0, network >= 0.1.0.1, bytestring, containers >= 0.6.5.1
     default-language: Haskell2010
 
 executable mqtt-client
