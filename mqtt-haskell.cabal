@@ -75,4 +75,4 @@ test-suite mqtt-tests
       Arbitrary.Packets, 
       Arbitrary.Message, 
       Arbitrary.QoS, 
-    build-depends:  base, mqtt-haskell, tasty, tasty-quickcheck, tasty-hunit
+    build-depends:  base, mqtt-haskell, tasty, tasty-quickcheck, tasty-hunit, network
