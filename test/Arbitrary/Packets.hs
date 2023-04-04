@@ -4,6 +4,7 @@
 module Arbitrary.Packets where
 import Test.Tasty.QuickCheck (Arbitrary (arbitrary), oneof, Gen, elements, listOf, listOf1)
 import Packets 
+import Arbitrary.QoS
 
 genSafeChar :: Gen Char
 genSafeChar = elements $ ['a'..'z'] ++ ['0' .. '9']
@@ -18,9 +19,6 @@ instance Arbitrary Packet where
     arbitrary = oneof [arbitraryConnack, arbitraryConnect, arbitraryDisconnect, arbitraryPingreq, arbitraryPingresp, arbitraryPuback
                       , arbitraryPubcomp, arbitraryPublish, arbitraryPubrec, arbitraryPubrel, arbitrarySuback, arbitrarySubscribe, 
                       arbitraryUnsuback, arbitraryUnsubscribe]
-
-instance Arbitrary QoS where
-    arbitrary = elements [Zero, One, Two]
 
 instance Arbitrary ConnectFlags where
     arbitrary = oneof [ConnectFlags <$> (Just <$> genSafeString) <*> (Just <$> genSafeString) <*> arbitraryWill <*> arbitrary,

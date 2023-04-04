@@ -8,6 +8,8 @@ import Socket.Base (createServer, recvPacket, sendPacket)
 import Utils.Queue ( Queue (..), pop, push, single )
 import Control.Applicative ( Alternative((<|>)) )
 import Packets
+import Data.Maybe (catMaybes)
+import Data.Bifunctor (bimap, first)
 import qualified Data.Map as M
 import Debug.Trace (trace, traceShow)
 
@@ -48,11 +50,23 @@ messageQueue messages sessions = do
                     messageQueue messages sessions
 
 sendMessage :: Message -> [((Topic, QoS), Maybe Socket)] -> IO ()
-sendMessage _ [] = return ()
-sendMessage m ((_, Nothing):xs) = sendMessage m xs
-sendMessage m@(Message _ msg pid) ((sub, Just conn):xs) = do
-    sendPacket conn $ writePublishPacket pid (PublishFlags False False sub) msg
-    sendMessage m xs
+sendMessage msg xs = 
+  let pktConns = createMessagePackets msg xs
+      send' (pkt, conn) = sendPacket conn pkt
+  in do
+    _ <- sequence $ map send' pktConns
+    return ()
+
+-- | Creates one Publish packet for each connected subscription
+createMessagePackets :: Message -> [((Topic, QoS), Maybe Socket)] -> [(Packet, Socket)]
+createMessagePackets (Message _ msg pid) subConns = map (first createPacket) connectedSubs
+  where 
+    connectedSubs :: [((Topic, QoS), Socket)]
+    connectedSubs = catMaybes $ map (\(sub, mConn) -> mConn >>= (\conn -> return (sub, conn))) subConns
+
+    createPacket :: (Topic, QoS) -> Packet
+    createPacket sub = writePublishPacket pid (PublishFlags False False sub) msg
+
 
 acceptClientLoop :: Socket -> Token -> MVar (Queue Message) -> MVar [Session] -> IO ()
 acceptClientLoop broker sSecret queue sessions = do
