@@ -80,15 +80,17 @@ handleConnect sock sSecret sessions = do
             return Nothing
         Just (cid, ConnectFlags _ cSecret will cleanSession, keepAlive) -> do
             -- Implement authentication
-            (if isAuthenticated sSecret cSecret then (do
+            (if isAuthenticated sSecret cSecret 
+              then (do
                 session <- filter (\s -> clientId s == cid) <$> readMVar sessions
                 case (session, cleanSession) of
-                    ([Session _ subs _ w _], False) -> do
-                        sendPacket sock $ writeConnackPacket True Accepted
-                        return $ Just $ Session cid subs keepAlive (w <|> will) (Just sock)
-                    _ -> do
-                        sendPacket sock $ writeConnackPacket False Accepted
-                        return $ Just $ Session cid M.empty keepAlive will (Just sock)) else (do
+                  ([Session _ subs _ w _], False) -> do
+                      sendPacket sock $ writeConnackPacket True Accepted
+                      return $ Just $ Session cid subs keepAlive (w <|> will) (Just sock)
+                  _ -> do
+                      sendPacket sock $ writeConnackPacket False Accepted
+                      return $ Just $ Session cid M.empty keepAlive will (Just sock)) 
+              else (do
                 sendPacket sock $ writeConnackPacket False AuthError
                 return Nothing))
 
