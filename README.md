@@ -1,5 +1,5 @@
 # MQTT-Haskell
-## Desription
+## Description
 This library provides an MQTT implementation for Haskell per the [specification of the OASIS MQTT Technical Committe](https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html). This implementation is partial and not yet complete, the available features are:
 
 - Client (Publish, Subscribe)
@@ -8,7 +8,7 @@ This library provides an MQTT implementation for Haskell per the [specification 
 - QoS 0
 - QoS 1 *(Experimental)*
 
-## Building / Testing
+## Building and Testing
 To build the project (for development purposes) follow these steps:
 1. `git clone` this repository
 2. use `cabal build` in the root directory `mqtt-haskell`
