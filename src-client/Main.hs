@@ -4,14 +4,12 @@ import Client
 import Client.Subscription
 import Client.Connection
 import Client.MqttConfig
-import qualified Chat.App as App
 
 main :: IO ()
 main = do
-  App.run 
-  -- clientId <- getLine
-  -- conn <- open (MqttConfig clientId "127.0.0.1" 8000 (Just "supersecretpassword")) subscriptions
-  -- chat conn
+  clientId <- getLine
+  conn <- open (MqttConfig clientId "127.0.0.1" 8000 (Just "supersecretpassword")) subscriptions
+  chat conn
 
 chat :: Connection -> IO ()
 chat conn = do
@@ -23,4 +21,7 @@ subscriptions :: Subscription
 subscriptions = subGroup [topic1Sub]
 
 topic1Sub :: Subscription
-topic1Sub = sub "topic1" (pure putStrLn)
+topic1Sub = sub "topic1" (pure customDataHandler)
+
+customDataHandler :: String -> IO ()
+customDataHandler d = putStrLn $ "Received: " ++ d
