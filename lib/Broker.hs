@@ -9,7 +9,7 @@ import Utils.Queue ( Queue (..), pop, push, single )
 import Control.Applicative ( Alternative((<|>)) )
 import Packets
 import qualified Data.Map as M
-import Debug.Trace (trace, traceShow)
+import Client.MqttConfig (CID)
 
 data MqttBroker = MqttBroker {socket :: Socket, acThread :: ThreadId,  mqThread :: ThreadId }
 
@@ -79,29 +79,26 @@ handleConnect sock sSecret sessions = do
             sendPacket sock $ writeConnackPacket False BadProtocalError
             return Nothing
         Just (cid, ConnectFlags _ cSecret will cleanSession, keepAlive) -> do
-            -- Implement authentication
-            (if isAuthenticated sSecret cSecret 
-              then (do
-                session <- filter (\s -> clientId s == cid) <$> readMVar sessions
-                case (session, cleanSession) of
-                  ([Session _ subs _ w _], False) -> do
-                      sendPacket sock $ writeConnackPacket True Accepted
-                      return $ Just $ Session cid subs keepAlive (w <|> will) (Just sock)
-                  _ -> do
-                      sendPacket sock $ writeConnackPacket False Accepted
-                      return $ Just $ Session cid M.empty keepAlive will (Just sock)) 
-              else (do
-                sendPacket sock $ writeConnackPacket False AuthError
-                return Nothing))
+            case authCheck sSecret cSecret of -- If multiple checks need to be done, implement them here with the return of an error packet
+                Accepted -> do
+                    session <- filter (\s -> clientId s == cid) <$> readMVar sessions
+                    case (session, cleanSession) of
+                        ([Session _ subs _ w oldSock], False) -> do 
+                            maybe (return ()) (`sendPacket` writeDisconnectPacket) oldSock -- Disconnect the old socket
+                            sendPacket sock $ writeConnackPacket True Accepted
+                            return $ Just $ Session cid subs keepAlive (w <|> will) (Just sock)
+                        _ -> do
+                            sendPacket sock $ writeConnackPacket False Accepted
+                            return $ Just $ Session cid M.empty keepAlive will (Just sock)
+                connErr -> do 
+                    sendPacket sock $ writeConnackPacket False connErr
+                    return Nothing
 
-
-isAuthenticated :: Token -> Token -> Bool
-isAuthenticated sSecret cSecret = do
-    case (sSecret, cSecret) of
-        (Just a, Just b)    -> a == b
-        (Just a, _)         -> False
-        (_ , Just b)        -> True
-        (_, _)              -> True
+authCheck :: Token -> Token -> ConnackResponse
+authCheck (Just a) (Just b)   = if a == b then Accepted else AuthError
+authCheck (Just _) _          = BadAuthError
+authCheck _ (Just _)          = Accepted
+authCheck _ _                 = Accepted
 
 handleSubscribe :: Socket -> IO (Maybe [(Topic, QoS)])
 handleSubscribe sock = do

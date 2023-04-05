@@ -1,4 +1,4 @@
-module Client.MqttConfig (MqttConfig(..), noAuth) where
+module Client.MqttConfig (MqttConfig(..), noAuth, CID) where
 
 import Network.Socket ( PortNumber )
 
