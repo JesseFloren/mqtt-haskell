@@ -12,8 +12,8 @@ This library provides an MQTT implementation for Haskell per the [specification 
 To build the project (for development purposes) follow these steps:
 1. `git clone` this repository
 2. use `cabal build` in the root directory `mqtt-haskell`
-3. use `cabal run mqtt-broker` to spawn a broker
-4. use `cabal run mqtt-client` to start a test client
+3. use `cabal run mqtt-broker` to spawn a broker and wait for it to finish linking
+4. then use `cabal run mqtt-client` to start a test client 
 
 The project can be tested with the following commands:
 
