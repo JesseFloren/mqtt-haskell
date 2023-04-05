@@ -41,25 +41,25 @@ messageQueue messages sessions = do
     case message of
         Nothing -> messageQueue messages sessions
         Just msg -> do
-            modifyMVar_ sessions (mapM (sendMessage msg))
+            modifyMVar_ sessions (mapM (sendMessage msg False))
             case queue of
                 End -> messageQueue messages sessions
                 _ -> do
                     modifyMVar_ messages (\_ -> return queue)
                     messageQueue messages sessions
 
-sendMessage :: Message -> Session -> IO Session
-sendMessage m@(Message topic msg pid) s@(Session {..}) = case (conn, M.member topic subscriptions) of
+sendMessage :: Message -> Dup -> Session -> IO Session
+sendMessage m@(Message topic msg pid) dup s@(Session {..}) = case (conn, M.member topic subscriptions) of
     (Just sock, True) -> do
         let qos = subscriptions M.! topic
-        sendPacket sock $ writePublishPacket pid (PublishFlags False False (topic, subscriptions M.! topic)) msg
+        sendPacket sock $ writePublishPacket pid (PublishFlags dup False (topic, subscriptions M.! topic)) msg
         return $ Session clientId subscriptions keepAlive will (if qos /= Zero then m:pending else pending) conn
     _ -> return s
 
 sessionHandler :: MVar [Session] -> Int -> IO ()
 sessionHandler sessions ms = do
     threadDelay (ms * 1000)
-    _ <- readMVar sessions >>= mapM_ (\s -> mapM_ (`sendMessage` s) (pending s))
+    _ <- readMVar sessions >>= mapM_ (\s -> mapM_ (\x -> sendMessage x True s) (pending s))
     sessionHandler sessions ms
 
 acceptClientLoop :: Socket -> Token -> MVar (Queue Message) -> MVar [Session] -> IO ()
