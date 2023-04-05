@@ -4,6 +4,7 @@ import Client
 import Client.Subscription
 import Client.Connection
 import Client.MqttConfig
+import Control.Exception.Base
 
 main :: IO ()
 main = do
@@ -14,8 +15,11 @@ main = do
 chat :: Connection -> IO ()
 chat conn = do
     msg <- getLine
-    (send `apply` conn) ("topic1", msg)
-    chat conn
+    result <- try ((send `apply` conn) ("topic1", msg)) :: IO (Either SomeException ())
+    case result of
+      Left _  -> putStrLn "Connection Interrupted"
+      Right _ -> chat conn
+    
 
 subscriptions :: Subscription
 subscriptions = subGroup [topic1Sub]

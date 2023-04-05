@@ -3,14 +3,15 @@
 
 module Broker where
 
-import Network.Socket ( Socket, PortNumber, accept )
+import Network.Socket ( Socket, PortNumber, accept, close)
 import Control.Concurrent
+import Control.Exception.Base
 import Socket.Base (createServer, recvPacket, sendPacket)
 import Utils.Queue ( Queue (..), pop, push, single )
 import Control.Applicative ( Alternative((<|>)) )
 import Packets
 import qualified Data.Map as M
-import Client.MqttConfig (CID)
+import Data.Either
 
 data MqttBroker = MqttBroker {socket :: Socket, acThread :: ThreadId,  mqThread :: ThreadId, sThread :: ThreadId }
 
@@ -20,7 +21,8 @@ data Session = Session {
     keepAlive :: Int,
     will :: Maybe (Retain, QoS, Topic, String),
     pending :: [Message],
-    conn :: Maybe Socket}
+    conn :: Maybe Socket,
+    listenThread :: ThreadId} deriving (Show)
 
 data Message = Message {topic :: Topic, msg :: String, pid :: PacketId} deriving (Show)
 
@@ -53,8 +55,8 @@ sendMessage :: Message -> Dup -> Session -> IO Session
 sendMessage m@(Message topic msg pid) dup s@(Session {..}) = case (conn, M.member topic subscriptions) of
     (Just sock, True) -> do
         let qos = subscriptions M.! topic
-        sendPacket sock $ writePublishPacket pid (PublishFlags dup False (topic, subscriptions M.! topic)) msg
-        return $ Session clientId subscriptions keepAlive will (if qos /= Zero then m:pending else pending) conn
+        result <- try (sendPacket sock $ writePublishPacket pid (PublishFlags dup False (topic, subscriptions M.! topic)) msg) :: IO (Either SomeException ())
+        return $ Session clientId subscriptions keepAlive will (if qos /= Zero then m:pending else pending) (if isLeft result then Nothing else conn) listenThread
     _ -> return s
 
 sessionHandler :: MVar [Session] -> Int -> IO ()
@@ -74,8 +76,9 @@ connectClient sock sSecret queue sessions = do
     conResp <- handleConnect sock sSecret sessions
     subResp <- handleSubscribe sock
     case (conResp, subResp) of
-        (Just (Session cid subs ka will pending conn), Just subscriptions) -> do
-            modifyMVar_ sessions $ return . (Session cid (subs `M.union` M.fromList subscriptions) ka will pending conn:)
+        (Just (Session cid subs ka will pending conn tid), Just subscriptions) -> do
+            let newSession = Session cid (subs `M.union` M.fromList subscriptions) ka will pending conn tid
+            modifyMVar_ sessions (\x -> return $ newSession:filter (\s -> clientId s /= cid) x)
             putStrLn $ "Connected with client: " ++ cid
             listenToClient sock queue sessions
         _ -> return ()
@@ -88,17 +91,19 @@ handleConnect sock sSecret sessions = do
             sendPacket sock $ writeConnackPacket False BadProtocalError
             return Nothing
         Just (cid, ConnectFlags _ cSecret will cleanSession, keepAlive) -> do
-             case authCheck sSecret cSecret of -- If multiple checks need to be done, implement them here with the return of an error packet
+             case authCheck sSecret cSecret of -- If multiple checks need to be done, implement them here with the return of an ConnackResponse
                 Accepted -> do
                     session <- filter (\s -> clientId s == cid) <$> readMVar sessions
                     case (session, cleanSession) of
-                        ([Session _ subs _ w pending oldSock], False) -> do 
+                        ([Session _ subs _ w pending oldSock tid], False) -> do 
                             maybe (return ()) (`sendPacket` writeDisconnectPacket) oldSock -- Disconnect the old socket
+                            maybe (return ()) close oldSock
+                            killThread tid -- Kill old listening thread
                             sendPacket sock $ writeConnackPacket True Accepted
-                            return $ Just $ Session cid subs keepAlive (w <|> will) pending (Just sock)
+                            Just . Session cid subs keepAlive (w <|> will) pending (Just sock) <$> myThreadId
                         _ -> do
                             sendPacket sock $ writeConnackPacket False Accepted
-                            return $ Just $ Session cid M.empty keepAlive will [] (Just sock)
+                            Just . Session cid M.empty keepAlive will [] (Just sock) <$> myThreadId
                 connErr -> do 
                     sendPacket sock $ writeConnackPacket False connErr
                     return Nothing
@@ -121,7 +126,7 @@ handleSubscribe sock = do
 
 listenToClient :: Socket -> MVar (Queue Message) -> MVar [Session] -> IO ()
 listenToClient sock queue sessions = do
-    resp <- recvPacket sock
+    resp <- recvPacket sock -- Error handling here
     case resp of
         Nothing -> return ()
         Just packet -> do
@@ -149,5 +154,5 @@ handlePuback :: Packet -> Socket -> MVar [Session] -> IO ()
 handlePuback packet sock sessions = do
     modifyMVar_ sessions $ mapM $ \s@(Session {..}) -> (
         if Just sock == conn then do
-            return $ Session clientId subscriptions keepAlive will [msg | msg <- pending, readPacketId packet /= Just (pid msg)] conn
+            return $ Session clientId subscriptions keepAlive will [msg | msg <- pending, readPacketId packet /= Just (pid msg)] conn listenThread
         else return s)

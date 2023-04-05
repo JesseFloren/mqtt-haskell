@@ -4,7 +4,7 @@
 module Client where
 
 import Network.Socket ( close, Socket )
-import Network.Socket.ByteString (recv, sendAll)
+import Network.Socket.ByteString (recv)
 import Socket.Base (createSocket, sendPacket, recvPacket)
 import Packets 
 import Control.Concurrent (forkIO)
@@ -89,6 +89,7 @@ listenToServer conn subs = do
                 PUBLISH -> do
                     handlePublish conn subs packet
                     listenToServer conn subs
+                DISCONNECT -> return () -- Kills itself
                 _ -> listenToServer conn subs
 
 handlePublish :: Connection -> Subscription -> Packet -> IO ()
