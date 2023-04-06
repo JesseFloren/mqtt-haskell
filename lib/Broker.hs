@@ -8,10 +8,10 @@ import Socket.Base (createServer, recvPacket, sendPacket)
 import Utils.Queue ( Queue (..), pop, push, single )
 import Control.Applicative ( Alternative((<|>)) )
 import Packets
-import Data.Maybe (catMaybes)
-import Data.Bifunctor (bimap, first)
+import Data.Maybe (mapMaybe)
+import Data.Bifunctor (first)
 import qualified Data.Map as M
-import Debug.Trace (trace, traceShow)
+-- import Debug.Trace (trace, traceShow)
 
 data MqttBroker = MqttBroker {socket :: Socket, acThread :: ThreadId,  mqThread :: ThreadId }
 
@@ -55,16 +55,14 @@ sendMessage :: Message -> [((Topic, QoS), Maybe Socket)] -> IO ()
 sendMessage msg xs = 
   let pktConns = createMessagePackets msg xs
       send' (pkt, conn) = sendPacket conn pkt
-  in do
-    _ <- sequence $ map send' pktConns
-    return ()
+  in mapM_ send' pktConns
 
 -- | Creates one Publish packet for each connected subscription
 createMessagePackets :: Message -> [((Topic, QoS), Maybe Socket)] -> [(Packet, Socket)]
 createMessagePackets (Message _ msg pid) subConns = map (first createPacket) connectedSubs
   where 
     connectedSubs :: [((Topic, QoS), Socket)]
-    connectedSubs = catMaybes $ map (\(sub, mConn) -> mConn >>= (\conn -> return (sub, conn))) subConns
+    connectedSubs = mapMaybe (\(sub, mConn) -> mConn >>= (\conn -> return (sub, conn))) subConns
 
     createPacket :: (Topic, QoS) -> Packet
     createPacket sub = writePublishPacket pid (PublishFlags False False sub) msg
