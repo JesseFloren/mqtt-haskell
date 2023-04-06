@@ -14,6 +14,7 @@ import Client.MqttConfig (MqttConfig(..))
 import Client.Subscription (Subscription, getHandler, getSubs)
 import qualified Packets.Simple as Simple
 import qualified Data.Map as M
+import Control.Monad
 
 open :: MqttConfig -> Subscription -> IO Connection
 open conf subs = do
@@ -30,7 +31,7 @@ open conf subs = do
 handlePending :: Connection -> Int -> IO ()
 handlePending conn ms = do
     threadDelay (ms * 1000)
-    readPending `apply` conn >>= mapM_ (\(_, msg) -> (send Zero `apply` conn) msg)
+    readPending `apply` conn >>= mapM_ (\(pid, (topic, msg)) -> sendPacket (sock conn) $ writePublishPacket pid (PublishFlags False False (topic, One)) msg)
     handlePending conn ms
 
 handleConnect :: Socket -> MqttConfig -> IO ()
@@ -61,7 +62,7 @@ mkMessagePacket qos = do
     addPend <- addToPending
     return $ \(topic,msg) -> do
       pId <- getPId
-      addPend (pId, (topic, msg))
+      when (qos == One) $ addPend (pId, (topic, msg))
       return $ writePublishPacket pId (PublishFlags False False (topic, qos)) msg
 
 
@@ -118,5 +119,5 @@ handlePublish conn subs packet = do
     case readPublishPacket packet of
         Nothing -> return ()
         Just (pid, flags, message) -> do
-          sendPacket (sock conn) $ writePubackPacket pid
+          when (snd (channel flags) == One) $ sendPacket (sock conn) $ writePubackPacket pid
           (($ message) <$> subs `getHandler` fst (channel flags)) `apply` conn

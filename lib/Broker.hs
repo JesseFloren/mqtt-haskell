@@ -126,23 +126,30 @@ handleSubscribe sock = do
 
 listenToClient :: Socket -> MVar (Queue Message) -> MVar [Session] -> IO ()
 listenToClient sock queue sessions = do
-    resp <- recvPacket sock -- Error handling here
-    case resp of
-        Nothing -> return ()
-        Just packet -> do
-            case cmd packet of
-                PUBLISH -> do 
-                    handlePublish packet sock queue
-                    listenToClient sock queue sessions
-                PUBACK -> do
-                    handlePuback packet sock sessions
-                    listenToClient sock queue sessions
-                DISCONNECT -> do
-                    session <- head <$> (filter (\s -> conn s == Just sock) <$> readMVar sessions)
-                    putStrLn $ "Received close from: " ++ clientId session  
-                    close sock
-                    modifyMVar_ sessions (return . filter (\s -> conn s /= Just sock)) -- Thread should die here
-                _ -> listenToClient sock queue sessions
+    resp <- recvPacket sock
+    tid <- myThreadId
+    -- Spawn extra fork to assist in situation when client spams messages. (Does not guarantee delivery of Qos0 per specification)
+    _ <- forkIO $ handleResponse resp sock queue sessions tid
+    listenToClient sock queue sessions
+
+handleResponse :: Maybe Packet -> Socket -> MVar (Queue Message) -> MVar [Session] -> ThreadId -> IO ()
+handleResponse resp sock queue sessions tid = case resp of
+    Nothing -> return ()
+    Just packet -> do
+        case cmd packet of
+            PUBLISH -> do 
+                handlePublish packet sock queue
+            PUBACK -> do
+                handlePuback packet sock sessions
+            DISCONNECT -> do
+                -- When a client sends a disconnect message we assume the client wants the session deleted.
+                -- Could be extended in future work.
+                session <- head <$> (filter (\s -> conn s == Just sock) <$> readMVar sessions)
+                putStrLn $ "Received close from: " ++ clientId session 
+                modifyMVar_ sessions (return . filter (\s -> conn s /= Just sock)) 
+                close sock 
+                killThread tid -- Thread should die here
+            _ -> return ()
             
 
 handlePublish :: Packet -> Socket -> MVar (Queue Message) -> IO ()
