@@ -11,6 +11,7 @@ import Control.Concurrent (forkIO)
 import Client.Connection (Connection (Conn, sock), ConnAction, getNextPacketId, chainM, getSock, apply)
 import Client.MqttConfig (MqttConfig(..))
 import Client.Subscription (Subscription, topics, findHandler)
+import Data.Maybe(maybe)
 import qualified Packets.Simple as Simple
 import qualified Data.Set as S
 
@@ -35,8 +36,9 @@ handleConnect sock conf = do
 
 handleSubscribe :: Socket -> S.Set Topic -> IO ()
 handleSubscribe sock topics = do
-    sendPacket sock $ writeSubscribePacket 0 $ S.toList (S.map (,Zero) topics)
-    suback <- recvPacket sock >>= (\case {Just x -> return $ readSubackPacket x; Nothing -> return Nothing})
+    let pkt = writeSubscribePacket 0 $ S.toList (S.map (,Zero) topics)
+    sendPacket sock pkt
+    suback <- maybe Nothing readSubackPacket <$> recvPacket sock
     case suback of
         Just (_, _) -> return ()
         _ -> error "Failed to subscribe"
