@@ -6,27 +6,33 @@ module Client where
 import Network.Socket ( close, Socket )
 import Network.Socket.ByteString (recv)
 import Socket.Base (createSocket, sendPacket, recvPacket)
-import Packets 
-import Control.Concurrent (forkIO, killThread, myThreadId, throwTo)
+import Packets
+import Control.Concurrent (forkIO, killThread, myThreadId, throwTo, newMVar, threadDelay, readMVar)
 import Utils.MqttException
-import Client.Connection (Connection (..), ConnAction, getNextPacketId, chainM, getSock, apply, getConn)
+import Client.Connection (Connection (..), ConnAction, getNextPacketId, chainM, getSock, apply, getConn, removeFromPending, addToPending, readPending)
 import Client.MqttConfig (MqttConfig(..))
-import Client.Subscription (Subscription, topics, findHandler)
+import Client.Subscription (Subscription, getHandler, getSubs)
 import qualified Packets.Simple as Simple
-import qualified Data.Set as S
-
+import qualified Data.Map as M
+import Control.Monad
 
 open :: MqttConfig -> Subscription -> IO Connection
 open conf subs = do
     sock <- createSocket (host conf, port conf)
     handleConnect sock conf
-    handleSubscribe sock (topics subs)
+    handleSubscribe sock (getSubs subs)
     putStrLn "Connected with broker successfully"
-    conn <- Conn sock <$> mkPacketIdCounter 
-    -- Beware, conn of main thread receives listen threadId while conn of listen thread receives main threadId
+    conn <- Conn sock <$> mkPacketIdCounter <*> newMVar []
     mainId <- myThreadId
-    listenId <- forkIO $ listenToServer (conn mainId) subs 
-    return (conn listenId)
+    pendingId <- forkIO $ handlePending (conn []) (resendDelay conf)
+    listenId <- forkIO $ listenToServer (conn [mainId, pendingId]) subs
+    return (conn [listenId, pendingId])
+
+handlePending :: Connection -> Int -> IO ()
+handlePending conn ms = do
+    threadDelay (ms * 1000)
+    readPending `apply` conn >>= mapM_ (\(pid, (topic, msg)) -> sendPacket (sock conn) $ writePublishPacket pid (PublishFlags False False (topic, One)) msg)
+    handlePending conn ms
 
 handleConnect :: Socket -> MqttConfig -> IO ()
 handleConnect sock conf = do
@@ -36,26 +42,28 @@ handleConnect sock conf = do
         Just (_, Accepted) -> return ()
         a -> error $ "Failed to connect " ++ show a
 
-handleSubscribe :: Socket -> S.Set Topic -> IO ()
-handleSubscribe sock topics = do
-    sendPacket sock $ writeSubscribePacket 0 $ S.toList (S.map (,Zero) topics)
+handleSubscribe :: Socket -> M.Map Topic QoS -> IO ()
+handleSubscribe sock subs = do
+    sendPacket sock $ writeSubscribePacket 0 $ M.toList subs
     suback <- recvPacket sock >>= (\case {Just x -> return $ readSubackPacket x; Nothing -> return Nothing})
     case suback of
         Just (_, _) -> return ()
         _ -> error "Failed to subscribe"
 
 --- *** Send to Broker *** ---
-send :: ConnAction ((Topic, String) -> IO ())
-send = do
-  pkt <- mkMessagePacket
+send :: QoS -> ConnAction ((Topic, String) -> IO ())
+send qos = do
+  pkt <- mkMessagePacket qos
   pkt `chainM` (sendPacket <$> getSock)
 
-mkMessagePacket :: ConnAction ((Topic, String) -> IO Packet)
-mkMessagePacket = do
+mkMessagePacket :: QoS -> ConnAction ((Topic, String) -> IO Packet)
+mkMessagePacket qos = do
     getPId <- getNextPacketId
+    addPend <- addToPending
     return $ \(topic,msg) -> do
       pId <- getPId
-      return $ writePublishPacket pId (PublishFlags False False (topic, Zero)) msg
+      when (qos == One) $ addPend (pId, (topic, msg))
+      return $ writePublishPacket pId (PublishFlags False False (topic, qos)) msg
 
 
 -- | Waits for a message to be received
@@ -65,7 +73,7 @@ receive = do
   return (extractMessage <$> pkt)
   where
     -- purposefully naive implementation as the protocol has yet to be described
-    extractMessage p | (Just (i, fs, str)) <- Simple.readPublishPacket p = str 
+    extractMessage p | (Just (i, fs, str)) <- Simple.readPublishPacket p = str
 
 receivePacket :: ConnAction (IO Packet)
 receivePacket = receiveIO <$> getSock
@@ -84,10 +92,8 @@ close = close' <$> getConn
 close' :: Connection -> IO ()
 close' conn = do
   sendPacket (sock conn) writeDisconnectPacket
-  killThread $ threadId conn -- Listening thread dies here
+  mapM_ killThread (threads conn) -- Listening thread dies here
   Network.Socket.close (sock conn)
-
-
 
 --- *** Listen to Server *** ---
 listenToServer :: Connection -> Subscription -> IO ()
@@ -100,8 +106,11 @@ listenToServer conn subs = do
                 PUBLISH -> do
                     handlePublish conn subs packet
                     listenToServer conn subs
+                PUBACK -> do
+                    maybe (return ()) (removeFromPending `apply` conn) (readPacketId packet)
+                    listenToServer conn subs
                 DISCONNECT -> do
-                  throwTo (threadId conn) DisconnectException
+                  throwTo (head $ threads conn) DisconnectException
                   return () -- Thread dies here
                 _ -> listenToServer conn subs
 
@@ -109,4 +118,6 @@ handlePublish :: Connection -> Subscription -> Packet -> IO ()
 handlePublish conn subs packet = do
     case readPublishPacket packet of
         Nothing -> return ()
-        Just (_, flags, message) -> (($ message) <$> subs `findHandler` fst (channel flags)) `apply` conn
+        Just (pid, flags, message) -> do
+          when (snd (channel flags) == One) $ sendPacket (sock conn) $ writePubackPacket pid
+          (($ message) <$> subs `getHandler` fst (channel flags)) `apply` conn
