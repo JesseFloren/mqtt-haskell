@@ -97,9 +97,9 @@ handleConnect :: Socket -> Token -> MVar [Session] -> IO (Maybe Session)
 handleConnect sock sSecret sessions = do
   connectPacket <- recvPacket sock >>= (\case {Just x -> return $ readConnectPacket x; Nothing -> return Nothing})
   case connectPacket of
-    Nothing -> Nothing <$ (sendPacket sock $ writeConnackPacket False BadProtocalError)
+    Nothing -> Nothing <$ sendPacket sock (writeConnackPacket False BadProtocalError)
     Just (cid, ConnectFlags _ cSecret will cleanSession, keepAlive)
-      | not (isAuthenticated sSecret cSecret) -> Nothing <$ (sendPacket sock $ writeConnackPacket False AuthError)
+      | not (isAuthenticated sSecret cSecret) -> Nothing <$ sendPacket sock (writeConnackPacket False AuthError)
       | otherwise -> do
         session <- filter (\s -> clientId s == cid) <$> readMVar sessions
         case (session, cleanSession) of
@@ -142,7 +142,7 @@ handlePublish :: Packet -> MVar (Queue Message) -> IO ()
 handlePublish p queue = case readPublishPacket p of
   Nothing -> return ()
   Just (pid, PublishFlags _ _ (topic, _), msgStr) -> do
-    let message = (Message topic msgStr pid)
+    let message = Message topic msgStr pid
     putStrLn $ "Received " ++ topic ++ ": " ++ msgStr
     updateMVar queue (single message) (return . push message)
 

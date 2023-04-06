@@ -79,20 +79,21 @@ close :: ConnAction (IO ())
 close = do Network.Socket.close <$> getSock
 
 --- *** Listen to Server *** ---
+-- | Continuously listens to server specified in Connection
 listenToServer :: Connection -> Subscription -> IO ()
 listenToServer conn subs = do
     response <- recvPacket (sock conn)
     case response of
-        Nothing -> return ()
-        Just packet -> do
-            case cmd packet of
-                PUBLISH -> do
-                    handlePublish conn subs packet
-                    listenToServer conn subs
-                _ -> listenToServer conn subs
+      Nothing -> return ()
+      Just packet -> listenToServer conn subs <* handlePacket conn subs packet
+
+-- | Handles received packets
+handlePacket :: Connection -> Subscription -> Packet -> IO ()
+handlePacket conn subs pack 
+  | PUBLISH <- cmd pack = handlePublish conn subs pack
+  | otherwise = return ()
 
 handlePublish :: Connection -> Subscription -> Packet -> IO ()
-handlePublish conn subs packet = do
-    case readPublishPacket packet of
-        Nothing -> return ()
-        Just (_, flags, message) -> (($ message) <$> subs `findHandler` fst (channel flags)) `apply` conn
+handlePublish conn subs packet 
+  | Just (_, flags, message) <- readPublishPacket packet = (($ message) <$> subs `findHandler` fst (channel flags)) `apply` conn
+  | otherwise = return ()
