@@ -15,7 +15,7 @@ import Data.Maybe(maybe)
 import qualified Packets.Simple as Simple
 import qualified Data.Set as S
 
-
+-- | Open a connection to the Broker and subscribe to the specified Topics
 open :: MqttConfig -> Subscription -> IO Connection
 open conf subs = do
     sock <- createSocket (host conf, port conf)
@@ -28,8 +28,9 @@ open conf subs = do
 
 handleConnect :: Socket -> MqttConfig -> IO ()
 handleConnect sock conf = do
-    sendPacket sock $ writeConnectPacket (cid conf) (ConnectFlags (token conf) (token conf) Nothing False) 60000
-    connack <- recvPacket sock >>= (\case {Just x -> return $ readConnackPacket x; Nothing -> return Nothing})
+    let pkt = writeConnectPacket (cid conf) (ConnectFlags (token conf) (token conf) Nothing False) 60000
+    sendPacket sock pkt
+    connack <- maybe Nothing readConnackPacket <$> recvPacket sock
     case connack of
         Just (_, Accepted) -> return ()
         a -> error $ "Failed to connect " ++ show a
