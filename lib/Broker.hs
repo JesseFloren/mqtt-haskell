@@ -5,13 +5,13 @@ module Broker where
 
 import Network.Socket ( Socket, PortNumber, accept, close)
 import Control.Concurrent
-import Control.Exception.Base
+import Control.Exception.Base ( SomeException, try )
 import Socket.Base (createServer, recvPacket, sendPacket)
 import Utils.Queue ( Queue (..), pop, push, single )
 import Control.Applicative ( Alternative((<|>)) )
 import Packets
 import qualified Data.Map as M
-import Data.Either
+import Data.Either ( isLeft )
 
 data MqttBroker = MqttBroker {socket :: Socket, acThread :: ThreadId,  mqThread :: ThreadId, sThread :: ThreadId }
 
@@ -131,10 +131,19 @@ listenToClient sock queue sessions = do
         Nothing -> return ()
         Just packet -> do
             case cmd packet of
-                PUBLISH -> handlePublish packet sock queue
-                PUBACK -> handlePuback packet sock sessions
-                _ -> return ()
-            listenToClient sock queue sessions
+                PUBLISH -> do 
+                    handlePublish packet sock queue
+                    listenToClient sock queue sessions
+                PUBACK -> do
+                    handlePuback packet sock sessions
+                    listenToClient sock queue sessions
+                DISCONNECT -> do
+                    session <- head <$> (filter (\s -> conn s == Just sock) <$> readMVar sessions)
+                    putStrLn $ "Received close from: " ++ clientId session  
+                    close sock
+                    modifyMVar_ sessions (return . filter (\s -> conn s /= Just sock)) -- Thread should die here
+                _ -> listenToClient sock queue sessions
+            
 
 handlePublish :: Packet -> Socket -> MVar (Queue Message) -> IO ()
 handlePublish p sock queue = case readPublishPacket p of

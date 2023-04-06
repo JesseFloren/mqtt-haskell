@@ -7,8 +7,9 @@ import Network.Socket ( close, Socket )
 import Network.Socket.ByteString (recv)
 import Socket.Base (createSocket, sendPacket, recvPacket)
 import Packets 
-import Control.Concurrent (forkIO)
-import Client.Connection (Connection (Conn, sock), ConnAction, getNextPacketId, chainM, getSock, apply)
+import Control.Concurrent (forkIO, killThread, myThreadId, throwTo)
+import Utils.MqttException
+import Client.Connection (Connection (..), ConnAction, getNextPacketId, chainM, getSock, apply, getConn)
 import Client.MqttConfig (MqttConfig(..))
 import Client.Subscription (Subscription, topics, findHandler)
 import qualified Packets.Simple as Simple
@@ -21,9 +22,11 @@ open conf subs = do
     handleConnect sock conf
     handleSubscribe sock (topics subs)
     putStrLn "Connected with broker successfully"
-    conn <- Conn sock <$> mkPacketIdCounter
-    _ <- forkIO $ listenToServer conn subs
-    return conn
+    conn <- Conn sock <$> mkPacketIdCounter 
+    -- Beware, conn of main thread receives listen threadId while conn of listen thread receives main threadId
+    mainId <- myThreadId
+    listenId <- forkIO $ listenToServer (conn mainId) subs 
+    return (conn listenId)
 
 handleConnect :: Socket -> MqttConfig -> IO ()
 handleConnect sock conf = do
@@ -76,7 +79,15 @@ receivePacket = receiveIO <$> getSock
 
 --- *** Close client *** ---
 close :: ConnAction (IO ())
-close = do Network.Socket.close <$> getSock
+close = close' <$> getConn
+
+close' :: Connection -> IO ()
+close' conn = do
+  sendPacket (sock conn) writeDisconnectPacket
+  killThread $ threadId conn -- Listening thread dies here
+  Network.Socket.close (sock conn)
+
+
 
 --- *** Listen to Server *** ---
 listenToServer :: Connection -> Subscription -> IO ()
@@ -89,7 +100,9 @@ listenToServer conn subs = do
                 PUBLISH -> do
                     handlePublish conn subs packet
                     listenToServer conn subs
-                DISCONNECT -> return () -- Kills itself
+                DISCONNECT -> do
+                  throwTo (threadId conn) DisconnectException
+                  return () -- Thread dies here
                 _ -> listenToServer conn subs
 
 handlePublish :: Connection -> Subscription -> Packet -> IO ()

@@ -5,10 +5,12 @@ import qualified Network.Socket as S
 import Packets (PacketIdCounter)
 import Packets.Abstract
 import Control.Monad ( (>=>) )
+import Control.Concurrent
 
 data Connection = Conn {
     sock :: S.Socket
   , nextPacketId :: PacketIdCounter
+  , threadId :: ThreadId
 } 
 
 instance Show Connection where
@@ -35,10 +37,10 @@ apply :: ConnAction a -> Connection -> a
 apply (CA f) = f
 
 getSock :: ConnAction S.Socket
-getSock = CA (\(Conn sock _) -> sock)
+getSock = CA (\(Conn sock _ _) -> sock)
 
 getNextPacketId :: ConnAction (IO PacketId)
-getNextPacketId = CA (\(Conn _ (_, nextPacketId)) -> nextPacketId)
+getNextPacketId = CA (\(Conn _ (_, nextPacketId) _) -> nextPacketId)
 
 getConn :: ConnAction Connection
 getConn = CA id
