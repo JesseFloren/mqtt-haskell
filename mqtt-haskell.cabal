@@ -30,6 +30,7 @@ library
         Utils.Bits, 
         Utils.Map,
         Utils.Queue,
+        Utils.MqttException,
 
         Socket.Base,
         Socket.Broker
