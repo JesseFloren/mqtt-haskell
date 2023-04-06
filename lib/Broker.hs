@@ -95,34 +95,27 @@ addSubs  (Session cid subs ka will conn) subscriptions = Session cid (subs `M.un
 
 handleConnect :: Socket -> Token -> MVar [Session] -> IO (Maybe Session)
 handleConnect sock sSecret sessions = do
-    connectPacket <- recvPacket sock >>= (\case {Just x -> return $ readConnectPacket x; Nothing -> return Nothing})
-    case connectPacket of
-        Nothing -> do
-            sendPacket sock $ writeConnackPacket False BadProtocalError
-            return Nothing
-        Just (cid, ConnectFlags _ cSecret will cleanSession, keepAlive) -> do
-            -- Implement authentication
-            (if isAuthenticated sSecret cSecret 
-              then (do
-                session <- filter (\s -> clientId s == cid) <$> readMVar sessions
-                case (session, cleanSession) of
-                  ([Session _ subs _ w _], False) -> do
-                      sendPacket sock $ writeConnackPacket True Accepted
-                      return $ Just $ Session cid subs keepAlive (w <|> will) (Just sock)
-                  _ -> do
-                      sendPacket sock $ writeConnackPacket False Accepted
-                      return $ Just $ Session cid M.empty keepAlive will (Just sock)) 
-              else (do
-                sendPacket sock $ writeConnackPacket False AuthError
-                return Nothing))
-
+  connectPacket <- recvPacket sock >>= (\case {Just x -> return $ readConnectPacket x; Nothing -> return Nothing})
+  case connectPacket of
+    Nothing -> Nothing <$ (sendPacket sock $ writeConnackPacket False BadProtocalError)
+    Just (cid, ConnectFlags _ cSecret will cleanSession, keepAlive)
+      | not (isAuthenticated sSecret cSecret) -> Nothing <$ (sendPacket sock $ writeConnackPacket False AuthError)
+      | otherwise -> do
+        session <- filter (\s -> clientId s == cid) <$> readMVar sessions
+        case (session, cleanSession) of
+          ([Session _ subs _ w _], False) -> do
+            sendPacket sock $ writeConnackPacket True Accepted
+            return $ Just $ Session cid subs keepAlive (w <|> will) (Just sock)
+          _ -> do
+            sendPacket sock $ writeConnackPacket False Accepted
+            return $ Just $ Session cid M.empty keepAlive will (Just sock)
 
 isAuthenticated :: Token -> Token -> Bool
 isAuthenticated sSecret cSecret = do
     case (sSecret, cSecret) of
         (Just a, Just b)    -> a == b
-        (Just a, _)         -> False
-        (_ , Just b)        -> True
+        (Just _, _)         -> False
+        (_ , Just _)        -> True
         (_, _)              -> True
 
 handleSubscribe :: Socket -> IO (Maybe [(Topic, QoS)])
