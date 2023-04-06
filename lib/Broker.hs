@@ -3,7 +3,7 @@
 module Broker where
 
 import Network.Socket ( Socket, PortNumber, accept )
-import Control.Concurrent
+import Control.Concurrent 
 import Socket.Base (createServer, recvPacket, sendPacket)
 import Utils.Queue ( Queue (..), pop, push, single )
 import Control.Applicative ( Alternative((<|>)) )
@@ -91,7 +91,7 @@ connectClient sock sSecret queue sessions = do
 
 -- TODO move to Broker.Session. Also, should probably implement this using a lens
 addSubs :: Session -> [(Topic, QoS)] -> Session
-addSubs  (Session cid subs ka will conn) subscriptions = Session cid (subs `M.union` M.fromList subscriptions) ka will conn
+addSubs (Session cid subs ka will conn) subscriptions = Session cid (subs `M.union` M.fromList subscriptions) ka will conn
 
 handleConnect :: Socket -> Token -> MVar [Session] -> IO (Maybe Session)
 handleConnect sock sSecret sessions = do
@@ -122,22 +122,21 @@ handleSubscribe :: Socket -> IO (Maybe [(Topic, QoS)])
 handleSubscribe sock = do
     subscriptions <- recvPacket sock >>= (\case {Just x -> return $ readSubscribePacket x; Nothing -> return Nothing})
     case subscriptions of
-        Nothing -> do
-            return Nothing
-        Just (pid, subs) -> do
-            sendPacket sock $ writeSubackPacket pid (map (Just . snd) subs)
-            return $ Just subs
+      Nothing -> return Nothing
+      Just (pid, subs) -> 
+        let pkt = writeSubackPacket pid (map (Just . snd) subs)
+        in Just subs <$ sendPacket sock pkt
 
 listenToClient :: Socket -> MVar (Queue Message) -> IO ()
 listenToClient sock queue = do
     resp <- recvPacket sock
     case resp of
-        Nothing -> return ()
-        Just packet -> do
-            case cmd packet of
-                PUBLISH -> handlePublish packet queue
-                _ -> return ()
-            listenToClient sock queue
+      Nothing -> return ()
+      Just packet -> do
+        case cmd packet of
+          PUBLISH -> handlePublish packet queue
+          _ -> return ()
+        listenToClient sock queue
 
 handlePublish :: Packet -> MVar (Queue Message) -> IO ()
 handlePublish p queue = case readPublishPacket p of

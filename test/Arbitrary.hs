@@ -1,8 +1,8 @@
 module Arbitrary 
   (
-    module Arbitrary.Packets
-  , module Arbitrary.Message
-  , module Arbitrary.QoS
+    module Arbitrary.Packets 
+  , module Arbitrary.Message 
+  , module Arbitrary.QoS 
   ) 
   where
 
