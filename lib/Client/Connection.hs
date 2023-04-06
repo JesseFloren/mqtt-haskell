@@ -1,5 +1,5 @@
 {-# LANGUAGE InstanceSigs #-}
-module Client.Connection (Connection(..), ConnAction(..), apply, getSock, getNextPacketId, getConn, returnIO, chainM) where
+module Client.Connection (Connection(..), ConnAction(..), apply, getSock, getNextPacketId, getConn, returnIO, chainM, removeFromPending, addToPending, readPending) where
 
 import qualified Network.Socket as S
 import Packets (PacketIdCounter)
@@ -10,8 +10,9 @@ import Control.Concurrent
 data Connection = Conn {
     sock :: S.Socket
   , nextPacketId :: PacketIdCounter
-  , threadId :: ThreadId
-} 
+  , pending :: MVar [(PacketId, (Topic, String))]
+  , threads :: [ThreadId]
+}
 
 instance Show Connection where
   show = show . sock
@@ -23,7 +24,7 @@ instance Functor ConnAction where
   fmap f (CA a) = CA (f . a)
 
 instance Applicative ConnAction where
-  pure :: a -> ConnAction a 
+  pure :: a -> ConnAction a
   pure = CA . const
 
   (<*>) :: ConnAction (a -> b) -> ConnAction a -> ConnAction b
@@ -37,10 +38,22 @@ apply :: ConnAction a -> Connection -> a
 apply (CA f) = f
 
 getSock :: ConnAction S.Socket
-getSock = CA (\(Conn sock _ _) -> sock)
+getSock = CA (\(Conn sock _ _ _) -> sock)
 
 getNextPacketId :: ConnAction (IO PacketId)
-getNextPacketId = CA (\(Conn _ (_, nextPacketId) _) -> nextPacketId)
+getNextPacketId = CA (\(Conn _ (_, nextPacketId) _ _) -> nextPacketId)
+
+getPending :: ConnAction (MVar [(PacketId, (Topic, String))])
+getPending = CA (\(Conn _ _ pending _) -> pending)
+
+readPending :: ConnAction (IO [(PacketId, (Topic, String))])
+readPending = readMVar <$> getPending
+
+addToPending :: ConnAction ((PacketId, (Topic, String)) -> IO ())
+addToPending = (\pending x -> modifyMVar_ pending $ return . (x:)) <$> getPending
+
+removeFromPending :: ConnAction (PacketId -> IO ())
+removeFromPending = (\pending x -> modifyMVar_ pending $ return . filter (\(pid, _) -> pid /= x)) <$> getPending
 
 getConn :: ConnAction Connection
 getConn = CA id
