@@ -15,12 +15,14 @@ import Debug.Trace (trace, traceShow)
 
 data MqttBroker = MqttBroker {socket :: Socket, acThread :: ThreadId,  mqThread :: ThreadId }
 
+-- TODO move to Broker.Session
 data Session = Session {
     clientId :: String,
     subscriptions :: M.Map Topic QoS,
     keepAlive :: Int,
     will:: Maybe (Retain, QoS, Topic, String),
-    conn :: Maybe Socket}
+    conn :: Maybe Socket
+}
 
 data Message = Message {topic :: Topic, msg :: String, pid :: PacketId} deriving (Show)
 
@@ -79,11 +81,19 @@ connectClient sock sSecret queue sessions = do
     conResp <- handleConnect sock sSecret sessions
     subResp <- handleSubscribe sock
     case (conResp, subResp) of
-        (Just (Session cid subs ka will conn), Just subscriptions) -> do
-            modifyMVar_ sessions $ return . (Session cid (subs `M.union` M.fromList subscriptions) ka will conn:)
-            putStrLn $ "Connected with client: " ++ cid
-            listenToClient sock queue
+        (Just session, Just subscriptions) -> do
+          pushSession (session `addSubs` subscriptions)
+          putStrLn $ "Connected with client: " ++ clientId session
+          listenToClient sock queue
         _ -> return ()
+  where 
+    -- TODO move to Broker.MVar (?)
+    pushSession :: Session -> IO ()
+    pushSession session = modifyMVar_ sessions $ return . (session :)
+
+-- TODO move to Broker.Session. Also, should probably implement this using a lens
+addSubs :: Session -> [(Topic, QoS)] -> Session
+addSubs  (Session cid subs ka will conn) subscriptions = Session cid (subs `M.union` M.fromList subscriptions) ka will conn
 
 handleConnect :: Socket -> Token -> MVar [Session] -> IO (Maybe Session)
 handleConnect sock sSecret sessions = do
