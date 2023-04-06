@@ -10,6 +10,7 @@ import qualified Client
 import Client.Connection
 import Client.Subscription (empty)
 import Client.MqttConfig (MqttConfig(..))
+import Packets (QoS (..))
 
 type Chat = [Message]
 
@@ -73,7 +74,7 @@ handleChatEvent state (Right serverMsg) = return (putMessage state serverMsg)
 -- TODO implement topics
 sendMessage :: ConnAction (Message -> IO ())
 sendMessage = do
-  send <- Client.send
+  send <- Client.send Zero
   return (\msg -> send ("", show msg))
 
 login :: IO AppState
@@ -81,7 +82,7 @@ login = do
   un <- promptUsername
   let ip = "127.0.0.1"
       port = 8000
-      ioSocket = Client.open (MqttConfig un ip port (Just "supersecretpassword")) empty
+      ioSocket = Client.open (MqttConfig un ip port 1000 (Just "supersecretpassword")) empty
   AppState <$> pure un <*> getMessages <*> ioSocket
       
 

@@ -1,4 +1,4 @@
-module Client.MqttConfig (MqttConfig(..), noAuth) where
+module Client.MqttConfig (MqttConfig(..), noAuth, CID) where
 
 import Network.Socket ( PortNumber )
 
@@ -11,8 +11,9 @@ data MqttConfig = MqttConfig {
     cid::CID
   , host::Host
   , port::PortNumber
+  , resendDelay :: Int
   , token::Maybe Token
 }
 
-noAuth :: CID -> Host -> PortNumber -> MqttConfig
-noAuth c h p = MqttConfig c h p Nothing
+noAuth :: CID -> Host -> PortNumber -> Int -> MqttConfig
+noAuth c h p r = MqttConfig c h p r Nothing 
