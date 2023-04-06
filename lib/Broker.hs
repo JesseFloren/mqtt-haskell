@@ -140,9 +140,14 @@ listenToClient sock queue = do
 
 handlePublish :: Packet -> MVar (Queue Message) -> IO ()
 handlePublish p queue = case readPublishPacket p of
-    Nothing -> return ()
-    Just (pid, PublishFlags _ _ (topic, _), msg) -> do
-        putStrLn $ "Received " ++ topic ++ ": " ++ msg
-        isempty <- isEmptyMVar queue
-        if isempty then putMVar queue (single (Message topic msg pid))
-        else modifyMVar_ queue (return . push (Message topic msg pid))
+  Nothing -> return ()
+  Just (pid, PublishFlags _ _ (topic, _), msgStr) -> do
+    let message = (Message topic msgStr pid)
+    putStrLn $ "Received " ++ topic ++ ": " ++ msgStr
+    updateMVar queue (single message) (return . push message)
+
+updateMVar :: MVar a -> a -> (a -> IO a) -> IO ()
+updateMVar v a f = do
+  isEmpty <- isEmptyMVar v
+  if isEmpty then putMVar v a
+  else modifyMVar_ v f
