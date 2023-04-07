@@ -1,11 +1,10 @@
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE TupleSections #-}
 
 module Client where
 
 import Network.Socket ( close, Socket )
 import Network.Socket.ByteString (recv)
-import Socket.Base (createSocket, sendPacket, recvPacket)
+import Utils.Socket (createSocket, sendPacket, recvPacket)
 import Packets
 import Control.Concurrent (forkIO, killThread, myThreadId, throwTo, newMVar, threadDelay, readMVar)
 import Utils.MqttException
@@ -15,6 +14,7 @@ import Client.Subscription (Subscription, getHandler, getSubs)
 import qualified Packets.Simple as Simple
 import qualified Data.Map as M
 import Control.Monad
+import Utils.IO
 
 open :: MqttConfig -> Subscription -> IO Connection
 open conf subs = do
