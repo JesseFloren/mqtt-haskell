@@ -7,6 +7,3 @@ authCheck (Just a) (Just b)   = if a == b then Accepted else AuthError
 authCheck (Just _) _          = BadAuthError
 authCheck _ (Just _)          = Accepted
 authCheck _ _                 = Accepted
-
-authenticate :: BrokerAction (Maybe Session)
-authenticate = undefined
