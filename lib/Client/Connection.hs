@@ -2,10 +2,10 @@
 module Client.Connection (Connection(..), ConnAction(..), apply, getSock, getNextPacketId, getConn, returnIO, chainM, removeFromPending, addToPending, readPending) where
 
 import qualified Network.Socket as S
-import Packets (PacketIdCounter)
-import Packets.Abstract
+import Utils.IO (PacketIdCounter)
+import Packets.Abstract ( PacketId, Topic )
 import Control.Monad ( (>=>) )
-import Control.Concurrent
+import Control.Concurrent ( readMVar, modifyMVar_, MVar, ThreadId )
 
 data Connection = Conn {
     sock :: S.Socket

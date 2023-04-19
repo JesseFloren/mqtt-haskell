@@ -1,22 +1,18 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE TupleSections #-}
-
 module Client where
 
 import Network.Socket ( close, Socket )
 import Network.Socket.ByteString (recv)
-import Socket.Base (createSocket, sendPacket, recvPacket)
+import Utils.Socket (createSocket, sendPacket, recvPacket)
 import Packets
-import Control.Concurrent (forkIO, killThread, myThreadId, throwTo, newMVar, threadDelay, readMVar)
+import Control.Concurrent (forkIO, killThread, myThreadId, throwTo, newMVar, threadDelay)
 import Utils.MqttException
 import Client.Connection (Connection (..), ConnAction, getNextPacketId, chainM, getSock, apply, getConn, removeFromPending, addToPending, readPending)
 import Client.MqttConfig (MqttConfig(..))
 import Client.Subscription (Subscription, getHandler, getSubs)
 import Control.Monad
-import Data.Maybe(maybe)
 import qualified Packets.Simple as Simple
-import qualified Data.Set as S
 import qualified Data.Map as M
+import Utils.IO
 
 
 -- | Open a connection to the Broker and subscribe to the specified Topics
@@ -72,14 +68,15 @@ mkMessagePacket qos = do
       return $ writePublishPacket pId (PublishFlags False False (topic, qos)) msg
 
 
--- | Waits for a message to be received
+-- | Receive and receivepacket arent used in practice since subsciptions exist
 receive :: ConnAction (IO String)
 receive = do
   pkt <- receivePacket
   return (extractMessage <$> pkt)
   where
     -- purposefully naive implementation as the protocol has yet to be described
-    extractMessage p | (Just (i, fs, str)) <- Simple.readPublishPacket p = str
+    extractMessage p | (Just (_, _, str)) <- Simple.readPublishPacket p = str
+                     | otherwise = undefined
 
 receivePacket :: ConnAction (IO Packet)
 receivePacket = receiveIO <$> getSock

@@ -1,6 +1,14 @@
 module Utils.Queue where
 
-data Queue a = Queue a (Queue a) | End deriving (Show)
+data Queue a = Queue a (Queue a) | End deriving (Show, Ord, Eq)
+
+instance Functor Queue where
+    fmap _ End = End
+    fmap f (Queue x xs) =  Queue (f x) (fmap f xs)
+
+instance Foldable Queue where
+  foldr _ b End = b
+  foldr f b (Queue x xs) = f x $ foldr f b xs 
 
 empty :: Queue a
 empty = End

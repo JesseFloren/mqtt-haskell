@@ -1,8 +1,8 @@
 module Main where
-import Broker (createBroker)
+import Broker (createBroker, BrokerConfig(..))
 
 main :: IO ()
 main = do
-    createBroker 8000 (Just "supersecretpassword") 1000
+    createBroker (BrokerConfig 8000 (Just "supersecretpassword") 1000)
     _ <- getLine
     putStrLn "Quit"

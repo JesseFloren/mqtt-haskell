@@ -4,7 +4,7 @@
 module Arbitrary.Packets where
 import Test.Tasty.QuickCheck (Arbitrary (arbitrary), oneof, Gen, elements, listOf, listOf1)
 import Packets 
-import Arbitrary.QoS
+import Arbitrary.QoS ()
 
 genSafeChar :: Gen Char
 genSafeChar = elements $ ['a'..'z'] ++ ['0' .. '9']

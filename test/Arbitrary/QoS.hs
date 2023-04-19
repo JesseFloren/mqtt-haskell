@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 module Arbitrary.QoS where
 
 import Packets (QoS(..))
