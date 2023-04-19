@@ -1,6 +1,4 @@
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TupleSections #-}
 
 module Broker.Handlers.Connection where
 
@@ -10,7 +8,7 @@ import qualified Data.Map as M
 import Packets
 import Control.Concurrent ( myThreadId, killThread, readMVar, ThreadId )
 import Utils.Socket ( sendPacket, recvPacket )
-import Broker.Auth ( authCheck )
+import Broker.Auth ( validatePacket )
 import Utils.IO ( whenJust )
 import Control.Applicative ((<|>))
 import Data.List (find)
@@ -26,10 +24,6 @@ handleConnect sock state = do
     (sp, session) <- trySession sock resp connectPacket state
     sendPacket sock $ writeConnackPacket sp resp
     return session
-
---- Performs validation of packet
-validatePacket :: Maybe (ClientId, ConnectFlags, KeepAlive) -> BrokerState -> ConnackResponse
-validatePacket m BrokerState{..} = maybe BadProtocalError (\(_, flags, _) -> authCheck (sSecret config) (password flags)) m
 
 --- Creates session if packet was validated
 trySession :: Socket -> ConnackResponse -> Maybe (ClientId, ConnectFlags, KeepAlive) -> BrokerAction (SessionPersist, Maybe Session)

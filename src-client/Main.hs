@@ -1,15 +1,11 @@
 module Main where
 
 import Client
-import Client.Subscription
-import Client.Connection
-import Client.MqttConfig
 import Control.Exception.Base
-import Utils (MqttException)
-import Packets (QoS(..))
 
 main :: IO ()
 main = do
+  putStrLn "To connect to the broker, provide clientId:"
   clientId <- getLine
   conn <- open (MqttConfig clientId "127.0.0.1" 8000 1000 (Just "supersecretpassword")) subscriptions
   res <- try (chat conn) :: IO (Either MqttException ())
@@ -21,7 +17,7 @@ chat :: Connection -> IO ()
 chat conn = do
     msg <- getLine
     case msg of 
-      "close" -> close' conn
+      "close" -> close_ conn
       _       -> do
         -- Sending can throw an exception
         (send Zero `apply` conn) ("topic1", msg ++ " (QoS0)")

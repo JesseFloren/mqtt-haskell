@@ -1,8 +1,8 @@
 module Broker
   (
-    createBroker, BrokerConfig(..)
+    createBroker, BrokerConfig(..), Message(..)
   )
   where
 
 import Broker.Base ( createBroker )
-import Broker.State ( BrokerConfig(..) )
+import Broker.State ( BrokerConfig(..), Message(..) )
