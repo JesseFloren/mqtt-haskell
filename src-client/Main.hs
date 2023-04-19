@@ -2,7 +2,6 @@ module Main where
 
 import Client
 import Control.Exception.Base
-import Packets (QoS(..))
 
 main :: IO ()
 main = do
