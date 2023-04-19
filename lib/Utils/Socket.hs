@@ -1,10 +1,11 @@
-module Socket.Base where
+module Utils.Socket where
 import Network.Socket
 import Packets.Abstract ( Packet )
 import Packets.Builder ( packetToByteString )
 import Packets.Parser ( byteStringToPacket )
 import Network.Socket.ByteString ( recv, sendAll )
 import Data.ByteString (null)
+import Control.Concurrent
 
 --- *** Server Side *** ---
 createServer :: PortNumber -> IO Socket
@@ -30,10 +31,13 @@ formatAddress (host, port) = do
 
 --- *** Send & Recv *** ---
 sendPacket :: Socket -> Packet -> IO ()
-sendPacket sock = sendAll sock . packetToByteString
+sendPacket sock p = do
+    threadDelay 1000
+    sendAll sock $ packetToByteString p
 
 recvPacket :: Socket -> IO (Maybe Packet)
 recvPacket sock = do
-    resp <- recv sock 1024
+    resp <- recv sock 4096
+    threadDelay 1000
     return $ if Data.ByteString.null resp then Nothing else byteStringToPacket resp
 
