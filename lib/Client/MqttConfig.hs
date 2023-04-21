@@ -2,7 +2,7 @@ module Client.MqttConfig (MqttConfig(..), noAuth, CID) where
 
 import Network.Socket ( PortNumber )
 
--- TODO add documentation to explain acronym
+-- |Client ID
 type CID = String 
 type Host = String
 type Token = String

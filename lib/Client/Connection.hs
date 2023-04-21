@@ -61,7 +61,7 @@ getConn = CA id
 returnIO :: a -> ConnAction (IO a)
 returnIO ioA = return $ do return ioA
 
--- TODO find better name
+-- |Chains a monadic function with a ConnAction to produce a ConnAction that produces an instance of that monad
 chainM :: Monad m => (a -> m b) -> ConnAction (b -> m c) -> ConnAction (a -> m c)
 chainM f1 f2 = do
   conn <- getConn
