@@ -21,7 +21,6 @@ printStateInfo :: AppState -> IO ()
 printStateInfo state = putStrLn $ "Logged in as " ++ username state ++ " (connected to " ++ show (conn state) ++ ")"
 
 -- Left user message, Right server message
--- TODO refine this into its own data type
 type ChatEvent = Either Message Message
 
 run :: IO ()
@@ -67,8 +66,6 @@ handleChatEvent state (Left userMsg) = do
 handleChatEvent state (Right serverMsg) = return (putMessage state serverMsg)
 
 
--- TODO move to own file
--- TODO implement topics
 sendMessage :: Client.ConnAction (Message -> IO ())
 sendMessage = do
   send <- Client.send Zero
